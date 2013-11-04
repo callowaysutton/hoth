@@ -254,12 +254,21 @@ var Sew = (function () {
       this.tempThread.isPreview = true;
     }
 
-
     clearInterval(this.animate);
     this.animate = setInterval(function () {
       var bb = this.element.getBoundingClientRect();
       var ibb = this.input.element.getBoundingClientRect();
-      var d = ((ibb.top + ibb.bottom) / 2 - (bb.top + bb.bottom) / 2) * .05;
+      var top = bb.top;
+      var h = bb.bottom - bb.top;
+      var margin = .3;
+      if (ibb.bottom > top + (1 - margin) * h) {
+        d = ibb.bottom - top - (1 - margin) * h;
+      } else if (ibb.top < top + margin * h) {
+        var d = ibb.top - top - margin * h;
+      } else {
+        d = 0;
+      }
+      d *= .05;
       if (Math.abs(d) < .5) {
         clearInterval(this.animate);
       }
