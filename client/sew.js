@@ -19,11 +19,29 @@ var Sew = (function () {
   };
 
   var Thread = function (data) {
+    this.app = data.app;
+    this.messages = [];
+
     this.element = el('sew-thread');
     this.element.appendChild(this.elSpacer = el('sew-thread-spacer'));
     this.element.appendChild(this.elLine = el('sew-thread-line', 'canvas'));
     this.elLine.width = 0;
     this.elLine.height = 0;
+  };
+
+  Thread.prototype.delete = function () {
+    var app = this.app;
+    if (app) {
+      if (this.element.parentNode === app.element) {
+        app.element.removeChild(this.element);
+      }
+
+      var threads = this.app.threads;
+      var i = threads.indexOf(this);
+      if (i > -1) {
+        threads.splice(i, 1);
+      }
+    }
   };
 
   Thread.prototype.connectTo = function (message) {
@@ -37,9 +55,8 @@ var Sew = (function () {
 
     this.elLine.width = w;
     this.elLine.height = h;
-    this.elLine.style.marginTop = (ubb.top - tbb.bottom - h) + 'px';
-    this.elLine.style.marginLeft = (tbb.right - tbb.left - w) + 'px';
-    this.elLine.style.marginBottom = (tbb.bottom - ubb.top) + 'px';
+    this.elLine.style.top = ubb.top - h + 'px';
+    this.elLine.style.right = 0;
 
     var context = this.elLine.getContext('2d');
     context.strokeStyle = '#ccc';
@@ -53,6 +70,7 @@ var Sew = (function () {
 
   var Message = function (data) {
     this.app = data.app;
+    this.children = [];
 
     this.template();
 
@@ -68,8 +86,6 @@ var Sew = (function () {
     this.elHeader.appendChild(this.elTimestamp = el('sew-message-time'));
     this.element.appendChild(this.elBody = el('sew-message-body'));
 
-    this.children = [];
-
     this.element.addEventListener('mousedown', function () {
       this.app.select(this);
     }.bind(this));
@@ -77,21 +93,61 @@ var Sew = (function () {
 
   Message.prototype.reply = function (message) {
     if (this.children.length) {
-      message.thread = new Thread;
-      this.app.threads.push(message.thread);
+      var newThread = message.thread = new Thread({ app: this.app });
+      var threads = this.app.threads;
+      var i = threads.indexOf(this.thread);
+      if (i > -1 && i < threads.length - 1) {
+        threads.splice(i + 1, 0, newThread);
+      } else {
+        threads.push(newThread);
+      }
 
-      message.thread.elSpacer.style.height = this.element.getBoundingClientRect().bottom - this.thread.element.getBoundingClientRect().top + 'px';
-      message.thread.element.appendChild(message.element);
-      this.app.element.insertBefore(message.thread.element, this.thread.element.nextElementSibling);
-      message.thread.source = this;
+      newThread.messages.push(message);
+      newThread.source = this;
+
+      newThread.startY = this.element.getBoundingClientRect().bottom - this.thread.element.getBoundingClientRect().top;
+      newThread.elSpacer.style.height = newThread.startY + 'px';
+      newThread.element.appendChild(message.element);
+      this.app.element.insertBefore(newThread.element, this.thread.element.nextElementSibling);
     } else {
       message.thread = this.thread;
 
+      var messages = this.thread.messages;
+      var i = messages.indexOf(this);
+      if (i === messages.length - 1) {
+        messages.push(message);
+      } else {
+        messages.splice(i, 0, message);
+      }
+
       this.thread.element.insertBefore(message.element, this.element.nextElementSibling);
     }
-    message.previous = this;
-    this.children.push(message);
-    this.app.select(message);
+
+    message.parent = this;
+    if (!this.children.length) {
+      message.previous = this;
+    }
+    if (!message.isPreview) {
+      this.children.push(message);
+      this.app.select(message);
+    }
+    this.app.layout();
+
+    return newThread;
+  };
+
+  Message.prototype.delete = function () {
+    var thread = this.thread;
+    if (thread) {
+      if (this.element.parentNode === thread.element) {
+        thread.element.removeChild(this.element);
+      }
+      var messages = thread.messages;
+      var i = messages.indexOf(this);
+      if (i > -1) {
+        messages.splice(i, 1);
+      }
+    }
   };
 
   var Input = function (data) {
@@ -125,7 +181,7 @@ var Sew = (function () {
           if (this.app.selectedMessage) {
             this.app.selectedMessage.reply(message);
           } else {
-            this.app.addMessage(message);
+            this.app.addRoot(message);
           }
           this.elInput.value = '';
           e.preventDefault();
@@ -133,11 +189,14 @@ var Sew = (function () {
       }
     }.bind(this));
   };
+  Input.prototype = Object.create(Message.prototype);
+
+  Input.prototype.isPreview = true;
 
   var App = function () {
     this.element = el('sew-app');
 
-    this.threads = [new Thread];
+    this.threads = [new Thread({ app: this })];
     this.element.appendChild(this.threads[0].element);
 
     this.input = new Input({ app: this, author: 'Nathan Dinsmore', time: new Date });
@@ -162,13 +221,10 @@ var Sew = (function () {
     }.bind(this));
   };
 
-  App.prototype.addMessage = function (message) {
-    if (this.selectedMessage) {
-      message.previous = this.selectedMessage;
-      this.selectedMessage.children.push(message);
-    }
-    message.thread = this.selectedMessage ? this.selectedMessage.thread : this.threads[0];
+  App.prototype.addRoot = function (message) {
+    message.thread = this.threads[0];
     message.thread.element.insertBefore(message.element, this.input.element);
+    message.thread.messages.push(message.thread);
     this.select(message);
     this.layout();
   };
@@ -186,18 +242,17 @@ var Sew = (function () {
     }
     this.selectedMessage = message;
     message.element.classList.add('selected');
-    if (message.children.length) {
-      var thread = this.tempThread = new Thread;
-      this.threads.push(thread);
-      this.element.insertBefore(thread.element, message.thread.element.nextElementSibling);
-      thread.elSpacer.style.height = message.element.getBoundingClientRect().bottom - message.thread.element.getBoundingClientRect().top + 'px';
-      thread.element.appendChild(this.input.element);
-      thread.source = message;
-    } else {
-      message.thread.element.appendChild(this.input.element);
-      this.element.scrollTop = this.element.scrollHeight;
+
+    if (this.tempThread) {
+      this.tempThread.delete();
     }
-    this.layout();
+
+    this.input.delete();
+    this.tempThread = message.reply(this.input);
+    if (this.tempThread) {
+      this.tempThread.isPreview = true;
+    }
+
     setTimeout(function () {
       this.input.elInput.focus();
     }.bind(this));
@@ -238,25 +293,29 @@ var Sew = (function () {
   };
 
   App.prototype.selectTopic = function (n) {
-    var message = this.selectedMessage;
-    var origin = message.previous;
-    var descent = 0;
-    while (origin) {
-      var children = origin.children;
-      var i = children.indexOf(message);
-      if (i > -1 && i + n > -1 && i + n < children.length) {
-        var target = children[i + n];
-        break;
+    if (!this.selectedMessage) return;
+    var threads = this.threads;
+    var i = threads.indexOf(this.selectedMessage.thread);
+    var p = 0;
+    do {
+      p += n;
+      if (i + p < 0 || i + p >= threads.length) return;
+      var thread = threads[i + p];
+    } while (thread.isPreview);
+    var bb = this.selectedMessage.element.getBoundingClientRect();
+    var messages = thread.messages;
+    var j = messages.length;
+    var d = Infinity;
+    while (j--) {
+      var m = messages[j];
+      var mbb = m.element.getBoundingClientRect();
+      var nd = Math.abs(mbb.top - bb.top);
+      if (nd < d) {
+        d = nd;
+        var target = m;
       }
-      message = origin;
-      origin = origin.previous;
-      descent += 1;
     }
     if (target) {
-      while (target.children.length && descent > 0) {
-        target = target.children[0];
-        descent -= 1;
-      }
       this.select(target);
     }
   };

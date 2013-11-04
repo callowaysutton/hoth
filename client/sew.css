@@ -74,6 +74,5 @@
   color: rgba(0, 0, 0, .4);
 }
 .sew-thread-line {
-  display: block;
-  position: relative;
+  position: absolute;
 }
