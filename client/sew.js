@@ -55,7 +55,7 @@ var Sew = (function () {
 
     this.elLine.width = w;
     this.elLine.height = h;
-    this.elLine.style.top = ubb.top - h + 'px';
+    this.elLine.style.top = ubb.top - tbb.top - h + 'px';
     this.elLine.style.right = 0;
 
     var context = this.elLine.getContext('2d');
