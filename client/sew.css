@@ -11,6 +11,22 @@
   white-space: nowrap;
   padding: 0 0 50%;
 }
+.sew-app::-webkit-scrollbar {
+  background: #eee;
+  width: 11px;
+  height: 11px;
+}
+.sew-app::-webkit-scrollbar-thumb {
+  background: #bbb;
+  border: 3px solid #eee;
+  border-radius: 11px;
+}
+.sew-app::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}
+.sew-app::-webkit-scrollbar-thumb:active {
+  background: #555;
+}
 .sew-thread {
   width: 300px;
   display: inline-block;
