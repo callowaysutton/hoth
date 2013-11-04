@@ -1,0 +1,79 @@
+.sew-app {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #eee;
+  overflow: auto;
+  position: absolute;
+  font: 11px Lucida Grande, Tahoma, sans-serif;
+  white-space: nowrap;
+}
+.sew-thread {
+  width: 300px;
+  display: inline-block;
+  vertical-align: top;
+  position: relative;
+}
+.sew-message {
+  margin: 8px;
+  padding: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  z-index: 1;
+}
+.sew-message.selected {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 0 0 3px rgba(0, 0, 0, .1);
+  border-radius: 1px;
+}
+.sew-message-header {
+  margin-bottom: 8px;
+}
+.sew-message-author {
+  font-weight: bold;
+  display: inline;
+}
+.sew-message-time {
+  color: rgba(0, 0, 0, .4);
+  float: right;
+}
+.sew-message-body,
+.sew-message-measure {
+  font: 14px Helvetica, Arial, sans-serif;
+  position: relative;
+  white-space: pre-wrap;
+}
+.sew-message-input {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: 0;
+  outline: 0;
+  font: inherit;
+  width: 100%;
+  resize: none;
+}
+.sew-message-measure {
+  position: absolute;
+  left: -99999px;
+  top: -99999px;
+  width: 100%;
+  white-space: pre-wrap;
+}
+.sew-message-input::-webkit-input-placeholder {
+  color: rgba(0, 0, 0, .4);
+}
+.sew-message-input:-moz-placeholder {
+  color: rgba(0, 0, 0, .4);
+}
+.sew-message-input::-moz-placeholder {
+  color: rgba(0, 0, 0, .4);
+}
+.sew-message-input:-ms-input-placeholder {
+  color: rgba(0, 0, 0, .4);
+}
+.sew-thread-line {
+  display: block;
+  position: relative;
+}
