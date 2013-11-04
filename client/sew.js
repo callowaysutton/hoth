@@ -130,7 +130,6 @@ var Sew = (function () {
     }
     if (!message.isPreview) {
       this.children.push(message);
-      this.app.select(message);
     }
     this.app.layout();
 
@@ -185,6 +184,7 @@ var Sew = (function () {
             } else {
               this.app.addRoot(message);
             }
+            this.app.select(message);
           }
           this.elInput.value = '';
           e.preventDefault();
@@ -206,7 +206,12 @@ var Sew = (function () {
     this.threads[0].elMessages.appendChild(this.input.element);
 
     document.body.addEventListener('keydown', function (e) {
-      if (!e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      var modifiers =
+        (e.ctrlKey ? 'c' : '') +
+        (e.altKey ? 'a' : '') +
+        (e.shiftKey ? 's' : '') +
+        (e.metaKey ? 'm' : '');
+      if (modifiers === '') {
         if (e.keyCode === 38) {
           this.selectPreviousMessage();
           e.preventDefault();
@@ -219,6 +224,11 @@ var Sew = (function () {
         } else if (e.keyCode === 39) {
           this.selectNextTopic();
           e.preventDefault();
+        }
+      }
+      if (modifiers === 'm' || modifiers === 'c') {
+        if (e.keyCode === 40) {
+          this.selectLastMessage();
         }
       }
     }.bind(this));
@@ -310,6 +320,15 @@ var Sew = (function () {
     this.selectionY = null;
   };
 
+  App.prototype.selectLastMessage = function () {
+    var message = this.selectedMessage;
+    while (message.children[0]) {
+      message = message.children[0];
+    }
+    this.select(message);
+    this.selectionY = null;
+  };
+
   App.prototype.selectPreviousTopic = function () {
     this.selectTopic(-1);
   };
@@ -351,7 +370,8 @@ var Sew = (function () {
   };
 
   return {
-    App: App
+    App: App,
+    Message: Message
   };
 
 }());
