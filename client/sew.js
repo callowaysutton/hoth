@@ -254,6 +254,18 @@ var Sew = (function () {
       this.tempThread.isPreview = true;
     }
 
+
+    clearInterval(this.animate);
+    this.animate = setInterval(function () {
+      var bb = this.element.getBoundingClientRect();
+      var ibb = this.input.element.getBoundingClientRect();
+      var d = ((ibb.top + ibb.bottom) / 2 - (bb.top + bb.bottom) / 2) * .05;
+      if (Math.abs(d) < .5) {
+        clearInterval(this.animate);
+      }
+      this.element.scrollTop += d;
+    }.bind(this));
+
     setTimeout(function () {
       this.input.elInput.focus();
     }.bind(this));

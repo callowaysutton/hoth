@@ -9,6 +9,7 @@
   position: absolute;
   font: 11px Lucida Grande, Tahoma, sans-serif;
   white-space: nowrap;
+  padding: 0 0 50%;
 }
 .sew-thread {
   width: 300px;
