@@ -271,7 +271,7 @@ var Sew = (function () {
         d = 0;
       }
       d *= .05;
-      if (Math.abs(d) < .5) {
+      if (Math.abs(d) < 1) {
         clearInterval(this.animate);
       }
       this.element.scrollTop += d;
