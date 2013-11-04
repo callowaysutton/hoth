@@ -224,7 +224,7 @@ var Sew = (function () {
   App.prototype.addRoot = function (message) {
     message.thread = this.threads[0];
     message.thread.element.insertBefore(message.element, this.input.element);
-    message.thread.messages.push(message.thread);
+    message.thread.messages.push(message);
     this.select(message);
     this.layout();
   };
@@ -276,12 +276,14 @@ var Sew = (function () {
     if (this.selectedMessage.previous) {
       this.select(this.selectedMessage.previous);
     }
+    this.selectionY = null;
   };
 
   App.prototype.selectNextMessage = function () {
     if (this.selectedMessage.children[0]) {
       this.select(this.selectedMessage.children[0]);
     }
+    this.selectionY = null;
   };
 
   App.prototype.selectPreviousTopic = function () {
@@ -302,14 +304,17 @@ var Sew = (function () {
       if (i + p < 0 || i + p >= threads.length) return;
       var thread = threads[i + p];
     } while (thread.isPreview);
-    var bb = this.selectedMessage.element.getBoundingClientRect();
+    var selectionY = this.selectionY;
+    if (selectionY == null) {
+      selectionY = this.selectionY = this.selectedMessage.element.getBoundingClientRect().top;
+    }
     var messages = thread.messages;
     var j = messages.length;
     var d = Infinity;
     while (j--) {
       var m = messages[j];
       var mbb = m.element.getBoundingClientRect();
-      var nd = Math.abs(mbb.top - bb.top);
+      var nd = Math.abs(mbb.top - selectionY);
       if (nd < d) {
         d = nd;
         var target = m;
