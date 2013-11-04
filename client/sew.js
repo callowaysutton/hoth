@@ -25,6 +25,7 @@ var Sew = (function () {
     this.element = el('sew-thread');
     this.element.appendChild(this.elSpacer = el('sew-thread-spacer'));
     this.element.appendChild(this.elLine = el('sew-thread-line', 'canvas'));
+    this.element.appendChild(this.elMessages = el('sew-thread-messages'));
     this.elLine.width = 0;
     this.elLine.height = 0;
   };
@@ -107,7 +108,7 @@ var Sew = (function () {
 
       newThread.startY = this.element.getBoundingClientRect().bottom - this.thread.element.getBoundingClientRect().top;
       newThread.elSpacer.style.height = newThread.startY + 'px';
-      newThread.element.appendChild(message.element);
+      newThread.elMessages.appendChild(message.element);
       this.app.element.insertBefore(newThread.element, this.thread.element.nextElementSibling);
     } else {
       message.thread = this.thread;
@@ -120,7 +121,7 @@ var Sew = (function () {
         messages.splice(i, 0, message);
       }
 
-      this.thread.element.insertBefore(message.element, this.element.nextElementSibling);
+      this.thread.elMessages.insertBefore(message.element, this.element.nextElementSibling);
     }
 
     message.parent = this;
@@ -139,8 +140,8 @@ var Sew = (function () {
   Message.prototype.delete = function () {
     var thread = this.thread;
     if (thread) {
-      if (this.element.parentNode === thread.element) {
-        thread.element.removeChild(this.element);
+      if (this.element.parentNode === thread.elMessages) {
+        thread.elMessages.removeChild(this.element);
       }
       var messages = thread.messages;
       var i = messages.indexOf(this);
@@ -200,7 +201,7 @@ var Sew = (function () {
     this.element.appendChild(this.threads[0].element);
 
     this.input = new Input({ app: this, author: 'Nathan Dinsmore', time: new Date });
-    this.threads[0].element.appendChild(this.input.element);
+    this.threads[0].elMessages.appendChild(this.input.element);
 
     document.body.addEventListener('keydown', function (e) {
       if (!e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -223,7 +224,7 @@ var Sew = (function () {
 
   App.prototype.addRoot = function (message) {
     message.thread = this.threads[0];
-    message.thread.element.insertBefore(message.element, this.input.element);
+    message.thread.elMessages.insertBefore(message.element, this.input.element);
     message.thread.messages.push(message);
     this.select(message);
     this.layout();
