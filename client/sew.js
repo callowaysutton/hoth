@@ -173,16 +173,18 @@ var Sew = (function () {
     this.elInput.addEventListener('keydown', function (e) {
       if (!e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (e.keyCode === 13) {
-          var message = new Message({
-            app: this.app,
-            author: data.author,
-            time: new Date,
-            body: this.elInput.value
-          });
-          if (this.app.selectedMessage) {
-            this.app.selectedMessage.reply(message);
-          } else {
-            this.app.addRoot(message);
+          if (this.elInput.value) {
+            var message = new Message({
+              app: this.app,
+              author: data.author,
+              time: new Date,
+              body: this.elInput.value
+            });
+            if (this.app.selectedMessage) {
+              this.app.selectedMessage.reply(message);
+            } else {
+              this.app.addRoot(message);
+            }
           }
           this.elInput.value = '';
           e.preventDefault();
