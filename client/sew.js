@@ -328,9 +328,10 @@ var Sew = (function () {
       if (i + p < 0 || i + p >= threads.length) return;
       var thread = threads[i + p];
     } while (thread.isPreview);
+    var base = this.selectedMessage.thread.element.getBoundingClientRect().top;
     var selectionY = this.selectionY;
     if (selectionY == null) {
-      selectionY = this.selectionY = this.selectedMessage.element.getBoundingClientRect().top;
+      selectionY = this.selectionY = this.selectedMessage.element.getBoundingClientRect().top - base;
     }
     var messages = thread.messages;
     var j = messages.length;
@@ -338,7 +339,7 @@ var Sew = (function () {
     while (j--) {
       var m = messages[j];
       var mbb = m.element.getBoundingClientRect();
-      var nd = Math.abs(mbb.top - selectionY);
+      var nd = Math.abs(mbb.top - base - selectionY);
       if (nd < d) {
         d = nd;
         var target = m;
