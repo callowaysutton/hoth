@@ -260,12 +260,6 @@ var Sew = (function () {
 
   App.prototype.layout = function () {
     var threads = this.threads;
-    this.threads = threads = [threads[0]].concat(threads.slice(1).sort(function (a, b) {
-      return b.startY - a.startY;
-    }));
-    for (var i = 1; i < threads.length; ++i) {
-      this.element.appendChild(threads[i].element);
-    }
     var i = threads.length;
     var z = 0;
     while (i--) {
