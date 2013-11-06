@@ -1,4 +1,4 @@
-var Sew = (function () {
+var Hoth = (function () {
   'use strict';
 
   var el = function (cl, tag) {
@@ -22,10 +22,10 @@ var Sew = (function () {
     this.app = data.app;
     this.messages = [];
 
-    this.element = el('sew-thread');
-    this.element.appendChild(this.elSpacer = el('sew-thread-spacer'));
-    this.element.appendChild(this.elLine = el('sew-thread-line', 'canvas'));
-    this.element.appendChild(this.elMessages = el('sew-thread-messages'));
+    this.element = el('hoth-thread');
+    this.element.appendChild(this.elSpacer = el('hoth-thread-spacer'));
+    this.element.appendChild(this.elLine = el('hoth-thread-line', 'canvas'));
+    this.element.appendChild(this.elMessages = el('hoth-thread-messages'));
     this.elLine.width = 0;
     this.elLine.height = 0;
   };
@@ -81,11 +81,11 @@ var Sew = (function () {
   };
 
   Message.prototype.template = function () {
-    this.element = el('sew-message');
-    this.element.appendChild(this.elHeader = el('sew-message-header'));
-    this.elHeader.appendChild(this.elAuthor = el('sew-message-author'));
-    this.elHeader.appendChild(this.elTimestamp = el('sew-message-time'));
-    this.element.appendChild(this.elBody = el('sew-message-body'));
+    this.element = el('hoth-message');
+    this.element.appendChild(this.elHeader = el('hoth-message-header'));
+    this.elHeader.appendChild(this.elAuthor = el('hoth-message-author'));
+    this.elHeader.appendChild(this.elTimestamp = el('hoth-message-time'));
+    this.element.appendChild(this.elBody = el('hoth-message-body'));
 
     this.element.addEventListener('mousedown', function () {
       this.app.select(this);
@@ -151,13 +151,13 @@ var Sew = (function () {
   };
 
   var Input = function (data) {
-    this.element = el('sew-message');
-    this.element.appendChild(this.elBody = el('sew-message-body'));
+    this.element = el('hoth-message');
+    this.element.appendChild(this.elBody = el('hoth-message-body'));
 
     this.app = data.app;
 
-    this.elBody.appendChild(this.elInput = el('sew-message-input', 'textarea'));
-    document.body.appendChild(this.elMeasure = el('sew-message-measure'));
+    this.elBody.appendChild(this.elInput = el('hoth-message-input', 'textarea'));
+    document.body.appendChild(this.elMeasure = el('hoth-message-measure'));
     this.elMeasure.textContent = 'X';
 
     this.elInput.placeholder = 'Say something\u2026';
@@ -197,7 +197,7 @@ var Sew = (function () {
   Input.prototype.isPreview = true;
 
   var App = function () {
-    this.element = el('sew-app');
+    this.element = el('hoth-app');
 
     this.threads = [new Thread({ app: this })];
     this.element.appendChild(this.threads[0].element);
