@@ -410,7 +410,7 @@ var Hoth = (function() {
   };
 
   App.prototype.reply = function(message) {
-    this.prompt.thread.reply(message);
+    this.activeThread.reply(message);
   };
 
   return {
