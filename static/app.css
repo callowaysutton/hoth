@@ -20,6 +20,7 @@ body {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, .05);
+  z-index: 2;
 }
 .hoth-thread-scrollbar-handle {
   position: absolute;
@@ -68,7 +69,6 @@ body {
   top: 0;
   left: 0;
   width: 100%;
-  padding-bottom: 96px;
 }
 .hoth-thread-messages {
   background: #fff;

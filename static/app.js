@@ -19,12 +19,14 @@ var Hoth = (function() {
   };
 
   var AUTOSCROLL_THRESHOLD = 5;
+  window.SCROLL_CONSTANT = .1;
 
   var Thread = function(data) {
     this.app = data.app;
     this.messages = [];
     this.shouldAutoscroll = true;
     this.scroll = 0;
+    this.dragging = false;
 
     this.element = el('hoth-thread');
     this.element.appendChild(this.elName = el('hoth-thread-name'));
@@ -33,6 +35,16 @@ var Hoth = (function() {
     this.elScrollbar.appendChild(this.elScrollbarHandle = el('hoth-thread-scrollbar-handle'));
     this.elContent.appendChild(this.elWrap = el('hoth-thread-wrap'));
     this.elWrap.appendChild(this.elMessages = el('hoth-thread-messages'));
+
+    this.elScrollbar.addEventListener('mousedown', function(e) {
+      this.dragging = true;
+      this.drag(e);
+      e.preventDefault();
+      document.addEventListener('mousemove', this.onMouseMove);
+      document.addEventListener('mouseup', this.onMouseUp);
+    }.bind(this));
+    this.onMouseMove = this.onMouseMove.bind(this);
+    this.onMouseUp = this.onMouseUp.bind(this);
 
     this.element.addEventListener('mousewheel', function(e) {
       this.shouldAutoscroll = false;
@@ -76,11 +88,29 @@ var Hoth = (function() {
     this.autoscroll();
   };
 
-  Thread.prototype.onScroll = function() {
-    this.shouldAutoscroll = this.elContent.scrollTop >= this.elContent.scrollHeight - this.elContent.offsetHeight - AUTOSCROLL_THRESHOLD;
+  Thread.prototype.onMouseMove = function(e) {
+    if (!this.dragging) return;
+    this.drag(e);
   };
 
-  window.SCROLL_CONSTANT = 200;
+  Thread.prototype.onMouseUp = function(e) {
+    this.dragging = false;
+    this.drag(e);
+    document.removeEventListener('mousemove', this.onMouseMove);
+    document.removeEventListener('mouseup', this.onMouseUp);
+  };
+
+  Thread.prototype.drag = function(e) {
+    var scrollbarSize = this.elScrollbar.offsetHeight;
+    var viewportSize = this.elContent.offsetHeight;
+    var contentSize = Math.max(viewportSize, this.elWrap.offsetHeight);
+
+    var d = (1 - (e.clientY - this.elScrollbar.getBoundingClientRect().top) / scrollbarSize) / SCROLL_CONSTANT;
+    var x = -d / (SCROLL_CONSTANT * d - 1);
+    this.scroll = contentSize - x * viewportSize;
+    this.shouldAutoscroll = false;
+    this.autoscroll();
+  };
 
   Thread.prototype.autoscroll = function() {
 
@@ -92,13 +122,16 @@ var Hoth = (function() {
       this.scroll = contentSize - viewportSize;
     }
     this.scroll = Math.min(Math.max(this.scroll, 0), contentSize - viewportSize);
+    this.shouldAutoscroll = contentSize - viewportSize - this.scroll >= AUTOSCROLL_THRESHOLD;
 
-    var scale = scrollbarSize / Math.log(contentSize / SCROLL_CONSTANT + 1);
-    var minValue = scrollbarSize - Math.log((contentSize - this.scroll) / SCROLL_CONSTANT + 1) * scale;
-    var maxValue = scrollbarSize - Math.log((contentSize - (this.scroll + viewportSize)) / SCROLL_CONSTANT + 1) * scale;
+    var x = (contentSize - this.scroll) / viewportSize;
+    var y = (contentSize - (this.scroll + viewportSize)) / viewportSize;
+
+    var minValue = scrollbarSize * (1 - SCROLL_CONSTANT * x / (SCROLL_CONSTANT * x + 1));
+    var maxValue = scrollbarSize * (1 - SCROLL_CONSTANT * y / (SCROLL_CONSTANT * y + 1));
 
     this.elScrollbarHandle.style.top = minValue + 'px';
-    this.elScrollbarHandle.style.height = (maxValue - minValue) + 'px';
+    this.elScrollbarHandle.style.height = Math.max(1, maxValue - minValue) + 'px';
 
     this.elWrap.style.top = -this.scroll + 'px';
   };
