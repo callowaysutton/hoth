@@ -28,6 +28,13 @@ body {
   width: 8px;
   background: rgba(0, 0, 0, .1);
 }
+.hoth-thread-markers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
 .hoth-thread {
   width: 300px;
   height: 100%;
@@ -80,10 +87,13 @@ body {
   z-index: 1;
   border-top: 1px solid rgba(0, 0, 0, .1);
 }
+.hoth-message.system {
+  background-color: #f8f8f8;
+}
 .hoth-message:first-child {
   border-top: 0;
 }
-.hoth-message-header {
+.hoth-message.chat > .hoth-message-header {
   margin-bottom: 8px;
 }
 .hoth-message-author {
