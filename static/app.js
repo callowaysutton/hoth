@@ -19,15 +19,15 @@ var Hoth = (function() {
     return string.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/, '&apos;');
   };
 
+  var RE_HASHTAG = /^#([^\s{}]+?)([\.!?"',;:\)]*(\s|$))/;
+
   var parse = function(string) {
     string = string.trim();
-    var topic;
     var result = '';
     var i = 0;
     while (i < string.length) {
       var x;
-      if (x = /^#([^\s{}]+?)([\.!?"',;:\)]*(\s|$))/.exec(string.slice(i))) {
-        if (!topic) topic = x[1];
+      if (x = RE_HASHTAG.exec(string.slice(i))) {
         result += '<a href="#' + escapeXML(x[1]) + '">#' + escapeXML(x[1]) + '</a>' + escapeXML(x[2]);
         i += x[0].length;
       } else {
@@ -41,11 +41,7 @@ var Hoth = (function() {
         i = j;
       }
     }
-    return {
-      topic: topic,
-      html: result,
-      source: string
-    };
+    return result;
   };
 
   var Thread = function(data) {
@@ -322,9 +318,7 @@ var Hoth = (function() {
   Object.defineProperty(Message.prototype, 'body', {
     set: function(body) {
       this.$body = body;
-      var result = parse(body);
-      this.html = result.html;
-      this.topic = result.topic;
+      this.html = parse(body);
     },
     get: function() {
       return this.$body;
@@ -462,17 +456,17 @@ var Hoth = (function() {
     }
   };
 
-  Prompt.prototype.sendMessage = function() {
+  Prompt.prototype.sendMessage = function(value) {
+    var x = RE_HASHTAG.exec(value);
+    if (x) {
+      value = value.slice(x[0].length).trim();
+      app.activeThread = Thread.topic(x[1]);
+      if (!value) return;
+    }
     var message = new ChatMessage({
       author: currentUser,
-      body: this.elInput.value
+      body: value
     });
-    if (message.topic && message.topic !== this.thread.name) {
-      app.activeThread = Thread.topic(message.topic);
-      if (message.body.length === message.topic.length + 1) {
-        return;
-      }
-    }
     this.thread.reply(message);
   };
 
