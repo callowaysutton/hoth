@@ -597,7 +597,7 @@ var Hoth = (function() {
       // TODO
       return;
     }
-    this.activeThread = this.topic(hash.substr(1));
+    this.activeThread = Thread.topic(hash.substr(1));
   };
 
   Object.defineProperty(app, 'currentUser', {
