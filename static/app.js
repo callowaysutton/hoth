@@ -19,7 +19,7 @@ var Hoth = (function() {
     return string.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/, '&apos;');
   };
 
-  var RE_HASHTAG = /^#([^\s{}]+?)([\.!?"',;:\)\]]*(\s|$))/;
+  var RE_HASHTAG = /^(#([^\s{}]+?)|!(\w+))([\.!?"',;:\)\]]*(\s|$))/;
 
   var parse = function(string) {
     string = string.trim();
@@ -28,10 +28,15 @@ var Hoth = (function() {
     while (i < string.length) {
       var x;
       if (x = RE_HASHTAG.exec(string.slice(i))) {
-        result += '<a href="#' + escapeXML(x[1]) + '">#' + escapeXML(x[1]) + '</a>' + escapeXML(x[2]);
+        if (x[2]) {
+          result += '<a href="#' + escapeXML(x[2]) + '">#' + escapeXML(x[2]) + '</a>';
+        } else {
+          result += '<a href="#' + escapeXML(JSON.stringify({ goto: '!' + x[3] })) + '">(thread)</a>';
+        }
+        result += escapeXML(x[4]);
         i += x[0].length;
       } else {
-        var j = string.slice(i + 1).search(/#/);
+        var j = string.slice(i + 1).search(/[#!]/);
         if (j === -1) {
           j = string.length;
         } else {
@@ -58,33 +63,43 @@ var Hoth = (function() {
     this.template();
 
     this.name = data.name;
+    this.uid = data.uid;
 
-    if (this.name) {
-      socket.emit('open thread', this.name);
+    if (this.id) {
+      socket.emit('open thread', this.id);
     } else {
       socket.emit('create thread', function(uid) {
         this.uid = uid;
+        Thread.temps[uid] = this;
       }.bind(this));
     }
   };
 
   Thread.topics = {};
+  Thread.temps = {};
 
   Thread.get = function(id, callback) {
     if (id[0] === '#') {
       callback(Thread.topic(id.slice(1)));
+    } else if (id[0] === '!') {
+      callback(Thread.temp(id.slice(1)));
     }
+  };
+
+  Thread.temp = function(uid) {
+    if (Thread.temps[uid]) {
+      return Thread.temps[uid];
+    }
+    return Thread.temps[uid] = new Thread({ uid: uid });
   };
 
   Thread.topic = function(name) {
     if (Thread.topics[name]) {
       return Thread.topics[name];
     }
-    var thread = new Thread({
+    return Thread.topics[name] = new Thread({
       name: name
     });
-    Thread.topics[name] = thread;
-    return thread;
   };
 
   Thread.prototype.template = function() {
@@ -187,7 +202,7 @@ var Hoth = (function() {
 
   Object.defineProperty(Thread.prototype, 'id', {
     get: function() {
-      return this.name ? '#' + this.name : '!' + this.uid;
+      return this.name ? '#' + this.name : this.uid ? '!' + this.uid : null;
     }
   });
 
@@ -460,7 +475,7 @@ var Hoth = (function() {
     var x = RE_HASHTAG.exec(value);
     if (x) {
       value = value.slice(x[0].length).trim();
-      app.activeThread = Thread.topic(x[1]);
+      app.activeThread = x[2] ? Thread.topic(x[2]) : Thread.temp(x[3]);
       if (!value) return;
     }
     var message = new ChatMessage({
@@ -482,24 +497,21 @@ var Hoth = (function() {
 
   var User = function(data) {
     this.name = data.name;
+    this.id = data.id;
   };
   User.map = {};
 
-  User.get = function(name, callback) {
-    if (User.map[name]) {
-      callback(User.map[name]);
+  User.get = function(id, callback) {
+    if (User.map[id]) {
+      callback(User.map[id]);
       return;
     }
-    socket.emit('user', name, callback);
+    socket.emit('user', id, function(data) {
+      callback(User.map[id] = new User(data));
+    });
   };
 
-  Object.defineProperty(User.prototype, 'id', {
-    get: function() {
-      return this.name;
-    }
-  });
-
-  var currentUser = new User({ name: 'Nathan Dinsmore' });
+  var currentUser;
 
   var app = {};
 
@@ -594,10 +606,20 @@ var Hoth = (function() {
     var hash = location.hash;
     if (hash.length <= 1) return;
     if (hash[1] === '{') {
-      // TODO
+      try {
+        this.runHash(JSON.parse(hash.slice(1)));
+      } catch (e) {}
       return;
     }
-    this.activeThread = Thread.topic(hash.substr(1));
+    this.activeThread = Thread.topic(hash.slice(1));
+  };
+
+  app.runHash = function(json) {
+    if (json.goto) {
+      Thread.get(json.goto, function(thread) {
+        app.activeThread = thread;
+      });
+    }
   };
 
   Object.defineProperty(app, 'currentUser', {
@@ -628,7 +650,14 @@ var Hoth = (function() {
   });
 
   socket.on('open thread', function(name) {
-    app.append(Thread.topic(name));
+    Thread.get(name, function(thread) {
+      app.append(thread);
+    });
+  });
+
+  socket.on('init', function(data) {
+    currentUser = new User(data.user);
+    Hoth.init();
   });
 
   app.User = User;

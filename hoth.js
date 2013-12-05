@@ -44,20 +44,30 @@ function handler(req, res) {
 }
 
 var users = {};
-
 var nextUID = 0;
 
+var getUser = function(id) {
+  return users[id] || (users[id] = {
+    name: 'User #' + id,
+    id: id
+  });
+};
+
 io.sockets.on('connection', function(socket) {
+
+  var user = getUser(nextUID++);
+
+  socket.emit('init', {
+    user: user
+  });
 
   socket.emit('system', {
     thread: '#lobby',
     body: 'Welcome to the #lobby! Type `/index` for an index of important topics and `/help` for a list of commands.'
   });
 
-  socket.on('user', function(name, callback) {
-    callback({
-      name: name
-    });
+  socket.on('user', function(id, callback) {
+    callback(getUser(id));
   });
 
   socket.on('chat', function(data) {
@@ -72,9 +82,9 @@ io.sockets.on('connection', function(socket) {
     socket.broadcast.emit('open thread', name);
   });
 
-  socket.on('create thread', function(name, callback) {
+  socket.on('create thread', function(callback) {
     var uid = nextUID++;
-    socket.broadcast.emit('create thread', uid);
+    socket.broadcast.emit('open thread', '!' + uid);
     callback(uid);
   });
 
