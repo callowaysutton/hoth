@@ -20,6 +20,7 @@ var Hoth = (function() {
   };
 
   var parse = function(string) {
+    string = string.trim();
     var topic;
     var result = '';
     var i = 0;
@@ -42,7 +43,8 @@ var Hoth = (function() {
     }
     return {
       topic: topic,
-      html: result
+      html: result,
+      source: string
     };
   };
 
@@ -422,6 +424,9 @@ var Hoth = (function() {
         htmlBody: escapeXML(this.app.user.name) + ' switched to <a href="#' + escapeXML(message.topic) + '">#' + escapeXML(message.topic) + '</a>.'
       }));
       this.app.activeThread = this.app.topic(message.topic);
+      if (message.body.length === message.topic.length + 1) {
+        return;
+      }
     }
     this.thread.reply(message);
   };
