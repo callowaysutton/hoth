@@ -15,6 +15,37 @@ var Hoth = (function() {
     return d.getHours() + ':' + pad('0', 2, '' + d.getMinutes());
   };
 
+  var escapeXML = function(string) {
+    return string.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/, '&apos;');
+  };
+
+  var parse = function(string) {
+    var topic;
+    var result = '';
+    var i = 0;
+    while (i < string.length) {
+      var x;
+      if (x = /^#([^\s{}]+?)([\.,;:\)]*(\s|$))/.exec(string.slice(i))) {
+        if (!topic) topic = x[1];
+        result += '<a href="#' + escapeXML(x[1]) + '">#' + escapeXML(x[1]) + '</a>' + escapeXML(x[2]);
+        i += x[0].length;
+      } else {
+        var j = string.slice(i + 1).search(/#/);
+        if (j === -1) {
+          j = string.length;
+        } else {
+          j += i + 1;
+        }
+        result += escapeXML(string.slice(i, j));
+        i = j;
+      }
+    }
+    return {
+      topic: topic,
+      html: result
+    };
+  };
+
   var Thread = function(data) {
     this.app = data.app;
     this.messages = [];
@@ -222,7 +253,13 @@ var Hoth = (function() {
     this.template();
 
     this.time = data.time || new Date;
-    this.body = data.body || '';
+    if (data.htmlBody) {
+      this.html = data.htmlBody
+    } else if (data.rawBody) {
+      this.html = escapeXML(data.rawBody);
+    } else {
+      this.body = data.body || '';
+    }
   };
 
   Object.defineProperty(Message.prototype, 'time', {
@@ -238,10 +275,22 @@ var Hoth = (function() {
   Object.defineProperty(Message.prototype, 'body', {
     set: function(body) {
       this.$body = body;
-      this.elBody.textContent = body;
+      var result = parse(body);
+      this.html = result.html;
+      this.topic = result.topic;
     },
     get: function() {
       return this.$body;
+    }
+  });
+
+  Object.defineProperty(Message.prototype, 'html', {
+    set: function(html) {
+      this.$html = html;
+      this.elBody.innerHTML = html;
+    },
+    get: function() {
+      return this.$html;
     }
   });
 
@@ -344,16 +393,27 @@ var Hoth = (function() {
   };
 
   Prompt.prototype.sendMessage = function() {
-    this.thread.reply(new ChatMessage({
+    var message = new ChatMessage({
       author: this.app.user,
       body: this.elInput.value
-    }));
+    });
+    if (message.topic && message.topic !== this.thread.name) {
+      this.thread.reply(new SystemMessage({
+        htmlBody: escapeXML(this.app.user.name) + ' switched to <a href="#' + escapeXML(message.topic) + '">#' + escapeXML(message.topic) + '</a>.'
+      }));
+      this.app.activeThread = this.app.topic(message.topic);
+    }
+    this.thread.reply(message);
   };
 
   Prompt.prototype.sendCommand = function(command) {
     this.thread.reply(new SystemMessage({
       body: 'Commands are not implemented'
     }));
+  };
+
+  Prompt.prototype.focus = function() {
+    this.elInput.focus();
   };
 
   var User = function(data) {
@@ -363,24 +423,19 @@ var Hoth = (function() {
   var App = function() {
     this.user = new User({ name: 'Nathan Dinsmore' });
     this.threads = [];
+    this.topics = {};
 
     this.element = el('hoth-app');
 
-    this.main = new Thread({ name: 'main' });
+    this.main = this.topic('main');
     this.append(this.main);
 
-    this.prompt = new Prompt();
-    this.open(this.main);
+    this.prompt = new Prompt;
+    this.activeThread = this.main;
 
-    document.body.addEventListener('keydown', function(e) {
-      var modifiers =
-        (e.ctrlKey ? 'c' : '') +
-        (e.altKey ? 'a' : '') +
-        (e.shiftKey ? 's' : '') +
-        (e.metaKey ? 'm' : '');
-    }.bind(this));
-
+    document.body.addEventListener('keydown', this.onKeyDown.bind(this));
     window.addEventListener('resize', this.layout.bind(this));
+    window.addEventListener('hashchange', this.onHashChange.bind(this));
   };
 
   Object.defineProperty(App.prototype, 'prompt', {
@@ -401,14 +456,42 @@ var Hoth = (function() {
     }
   });
 
-  App.prototype.open = function(thread) {
-    if (thread.app !== this) {
-      thread.delete();
-      this.append(thread);
+  App.prototype.topic = function(name) {
+    if (this.topics[name]) {
+      return this.topics[name];
     }
-    this.activeThread = thread;
-    thread.prompt = this.prompt;
+    var thread = new Thread({
+      name: name
+    });
+    this.topics[name] = thread;
+    return thread;
   };
+
+  Object.defineProperty(App.prototype, 'activeThread', {
+    set: function(thread) {
+      if (this.$activeThread === thread) return;
+
+      if (thread.app !== this) {
+        thread.delete();
+        this.append(thread);
+      }
+      if (this.$activeThread = thread) {
+        if (thread.name) {
+          location.hash = '#' + thread.name;
+        }
+        thread.element.scrollIntoView();
+        if (this.prompt) {
+          thread.prompt = this.prompt;
+          setTimeout(function() {
+            this.prompt.focus();
+          }.bind(this));
+        }
+      }
+    },
+    get: function() {
+      return this.$activeThread;
+    }
+  });
 
   App.prototype.append = function(thread) {
     thread.delete();
@@ -425,6 +508,24 @@ var Hoth = (function() {
 
   App.prototype.reply = function(message) {
     this.activeThread.reply(message);
+  };
+
+  App.prototype.onKeyDown = function(e) {
+    var modifiers =
+      (e.ctrlKey ? 'c' : '') +
+      (e.altKey ? 'a' : '') +
+      (e.shiftKey ? 's' : '') +
+      (e.metaKey ? 'm' : '');
+  };
+
+  App.prototype.onHashChange = function() {
+    var hash = location.hash;
+    if (hash.length <= 1) return;
+    if (hash[1] === '{') {
+      // TODO
+      return;
+    }
+    this.activeThread = this.topic(hash.substr(1));
   };
 
   return {
