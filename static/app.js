@@ -62,7 +62,7 @@ var Hoth = (function() {
 
     this.template();
 
-    this.name = data.name;
+    this.name = data.name && data.name.toLowerCase();
     this.uid = data.uid;
 
     if (this.id) {
@@ -94,6 +94,7 @@ var Hoth = (function() {
   };
 
   Thread.topic = function(name) {
+    name = name.toLowerCase();
     if (Thread.topics[name]) {
       return Thread.topics[name];
     }
