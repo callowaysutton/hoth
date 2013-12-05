@@ -19,7 +19,7 @@ var Hoth = (function() {
     return string.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/, '&apos;');
   };
 
-  var RE_HASHTAG = /^#([^\s{}]+?)([\.!?"',;:\)]*(\s|$))/;
+  var RE_HASHTAG = /^#([^\s{}]+?)([\.!?"',;:\)\]]*(\s|$))/;
 
   var parse = function(string) {
     string = string.trim();
