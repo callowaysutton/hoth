@@ -4,7 +4,7 @@ var mongoose = require('mongoose');
 mongoose.connect('mongodb://localhost/hoth');
 
 var app = require('http').createServer(handler);
-var io = require('socket.io');
+var io = require('socket.io').listen(app);
 
 app.listen(8080);
 
@@ -43,3 +43,39 @@ function handler(req, res) {
   }
 }
 
+var users = {};
+
+var nextUID = 0;
+
+io.sockets.on('connection', function(socket) {
+
+  socket.emit('system', {
+    thread: '#lobby',
+    body: 'Welcome to the #lobby! Type `/index` for an index of important topics and `/help` for a list of commands.'
+  });
+
+  socket.on('user', function(name, callback) {
+    callback({
+      name: name
+    });
+  });
+
+  socket.on('chat', function(data) {
+    socket.broadcast.emit('chat', data);
+  });
+
+  socket.on('system', function(data) {
+    socket.broadcast.emit('system', data);
+  });
+
+  socket.on('open thread', function(name) {
+    socket.broadcast.emit('open thread', name);
+  });
+
+  socket.on('create thread', function(name, callback) {
+    var uid = nextUID++;
+    socket.broadcast.emit('create thread', uid);
+    callback(uid);
+  });
+
+});

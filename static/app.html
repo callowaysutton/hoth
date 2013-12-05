@@ -3,11 +3,10 @@
 <title>Hoth</title>
 <link rel=stylesheet href=app.css>
 <body>
+<script src=/socket.io/socket.io.js></script>
 <script src=app.js></script>
 <script>
 
-var app = new Hoth.App();
-document.body.appendChild(app.element);
-app.layout();
+Hoth.init();
 
 </script>

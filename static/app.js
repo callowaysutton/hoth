@@ -49,7 +49,6 @@ var Hoth = (function() {
   };
 
   var Thread = function(data) {
-    this.app = data.app;
     this.messages = [];
     this.shouldAutoscroll = true;
     this.contentSize = 0;
@@ -63,6 +62,33 @@ var Hoth = (function() {
     this.template();
 
     this.name = data.name;
+
+    if (this.name) {
+      socket.emit('open thread', this.name);
+    } else {
+      socket.emit('create thread', function(uid) {
+        this.uid = uid;
+      }.bind(this));
+    }
+  };
+
+  Thread.topics = {};
+
+  Thread.get = function(id, callback) {
+    if (id[0] === '#') {
+      callback(Thread.topic(id.slice(1)));
+    }
+  };
+
+  Thread.topic = function(name) {
+    if (Thread.topics[name]) {
+      return Thread.topics[name];
+    }
+    var thread = new Thread({
+      name: name
+    });
+    Thread.topics[name] = thread;
+    return thread;
   };
 
   Thread.prototype.template = function() {
@@ -139,27 +165,35 @@ var Hoth = (function() {
   };
 
   Thread.prototype.delete = function() {
-    if (!this.app) return;
+    if (!this.open) return;
 
-    if (this.element.parentNode === this.app.element) {
-      this.app.element.removeChild(this.element);
+    if (this.element.parentNode === app.element) {
+      app.element.removeChild(this.element);
     }
 
-    var i = this.app.threads.indexOf(this);
+    var i = app.threads.indexOf(this);
     if (i !== -1) {
-      this.app.threads.splice(i, 1);
+      app.threads.splice(i, 1);
     }
+    this.open = true;
 
     if (this.prompt) {
       this.prompt = null;
-      this.app.activeThread = null;
+      app.activeThread = null;
     }
   };
 
   Thread.prototype.reply = function(message) {
     this.shouldAutoscroll = true;
     this.append(message);
+    socket.emit(message.isChat ? 'chat' : 'system', message.data());
   };
+
+  Object.defineProperty(Thread.prototype, 'id', {
+    get: function() {
+      return this.name ? '#' + this.name : '!' + this.uid;
+    }
+  });
 
   Thread.prototype.onMouseWheel = function(e) {
     this.shouldAutoscroll = false;
@@ -168,8 +202,8 @@ var Hoth = (function() {
   };
 
   Thread.prototype.onClick = function() {
-    if (this.app && document.getSelection().isCollapsed) {
-      this.app.activeThread = this;
+    if (document.getSelection().isCollapsed) {
+      app.activeThread = this;
       if (this.prompt) {
         this.prompt.focus();
       }
@@ -235,7 +269,7 @@ var Hoth = (function() {
   Thread.AUTOSCROLL_THRESHOLD = 5;
   Thread.SCROLL_CONSTANT = .1;
 
-  Object.prototype.rescroll = function() {
+  Thread.prototype.rescroll = function() {
     if (this.shouldAutoscroll) {
       this.scroll = this.contentSize - this.viewportSize;
     } else {
@@ -243,7 +277,7 @@ var Hoth = (function() {
     }
   };
 
-  Object.prototype.updateScroll = function(property) {
+  Thread.prototype.updateScroll = function(property) {
     var max = Math.max(this.contentSize, this.viewportSize);
     if (!property) {
       this.shouldAutoscroll = max - this.viewportSize - this.scroll <= Thread.AUTOSCROLL_THRESHOLD;
@@ -261,7 +295,6 @@ var Hoth = (function() {
   };
 
   var Message = function(data) {
-    this.app = data.app;
     this.children = [];
 
     this.template();
@@ -308,6 +341,13 @@ var Hoth = (function() {
     }
   });
 
+  Message.prototype.data = function() {
+    return {
+      thread: this.thread.id,
+      body: this.body
+    };
+  };
+
   Message.prototype.template = function() {
     this.element = el('hoth-message');
     this.element.appendChild(this.elHeader = el('hoth-message-header'));
@@ -329,6 +369,8 @@ var Hoth = (function() {
   };
 
   var ChatMessage = function(data) {
+    this.isChat = true;
+
     Message.call(this, data);
 
     if (data.author) this.author = data.author;
@@ -344,6 +386,12 @@ var Hoth = (function() {
       return this.$author;
     }
   });
+
+  ChatMessage.prototype.data = function() {
+    var json = Message.prototype.data.call(this);
+    json.author = this.author.id;
+    return json;
+  };
 
   ChatMessage.prototype.template = function() {
     Message.prototype.template.call(this);
@@ -416,14 +464,11 @@ var Hoth = (function() {
 
   Prompt.prototype.sendMessage = function() {
     var message = new ChatMessage({
-      author: this.app.user,
+      author: currentUser,
       body: this.elInput.value
     });
     if (message.topic && message.topic !== this.thread.name) {
-      this.thread.reply(new SystemMessage({
-        htmlBody: escapeXML(this.app.user.name) + ' switched to <a href="#' + escapeXML(message.topic) + '">#' + escapeXML(message.topic) + '</a>.'
-      }));
-      this.app.activeThread = this.app.topic(message.topic);
+      app.activeThread = Thread.topic(message.topic);
       if (message.body.length === message.topic.length + 1) {
         return;
       }
@@ -432,7 +477,7 @@ var Hoth = (function() {
   };
 
   Prompt.prototype.sendCommand = function(command) {
-    this.thread.reply(new SystemMessage({
+    this.thread.append(new SystemMessage({
       body: 'Commands are not implemented.'
     }));
   };
@@ -444,15 +489,34 @@ var Hoth = (function() {
   var User = function(data) {
     this.name = data.name;
   };
+  User.map = {};
 
-  var App = function() {
-    this.user = new User({ name: 'Nathan Dinsmore' });
+  User.get = function(name, callback) {
+    if (User.map[name]) {
+      callback(User.map[name]);
+      return;
+    }
+    socket.emit('user', name, callback);
+  };
+
+  Object.defineProperty(User.prototype, 'id', {
+    get: function() {
+      return this.name;
+    }
+  });
+
+  var currentUser = new User({ name: 'Nathan Dinsmore' });
+
+  var app = {};
+
+  app.init = function() {
     this.threads = [];
     this.topics = {};
 
     this.element = el('hoth-app');
+    document.body.appendChild(this.element);
 
-    this.lobby = this.topic('lobby');
+    this.lobby = Thread.topic('lobby');
     this.append(this.lobby);
 
     this.prompt = new Prompt;
@@ -463,17 +527,14 @@ var Hoth = (function() {
     window.addEventListener('hashchange', this.onHashChange.bind(this));
   };
 
-  Object.defineProperty(App.prototype, 'prompt', {
+  Object.defineProperty(app, 'prompt', {
     set: function(prompt) {
       if (this.$prompt) {
-        this.$prompt.app = null;
         this.$prompt.delete();
       }
-      if (this.$prompt = prompt) {
-        prompt.app = this;
-        if (this.activeThread) {
-          this.activeThread.prompt = prompt;
-        }
+      this.$prompt = prompt;
+      if (this.activeThread) {
+        this.activeThread.prompt = prompt;
       }
     },
     get: function() {
@@ -481,23 +542,14 @@ var Hoth = (function() {
     }
   });
 
-  App.prototype.topic = function(name) {
-    if (this.topics[name]) {
-      return this.topics[name];
-    }
-    var thread = new Thread({
-      name: name
-    });
-    this.topics[name] = thread;
-    return thread;
-  };
+  app.thread = Thread.get;
+  app.topic = Thread.topic;
 
-  Object.defineProperty(App.prototype, 'activeThread', {
+  Object.defineProperty(app, 'activeThread', {
     set: function(thread) {
       if (this.$activeThread === thread) return;
 
-      if (thread.app !== this) {
-        thread.delete();
+      if (!thread.open) {
         this.append(thread);
       }
       if (this.$activeThread = thread) {
@@ -518,25 +570,25 @@ var Hoth = (function() {
     }
   });
 
-  App.prototype.append = function(thread) {
-    thread.delete();
+  app.append = function(thread) {
+    if (thread.open) return;
     this.threads.push(thread);
     this.element.appendChild(thread.element);
-    thread.app = this;
+    thread.open = true;
     thread.viewportChanged();
   };
 
-  App.prototype.layout = function() {
+  app.layout = function() {
     this.threads.forEach(function(thread) {
       thread.viewportChanged();
     });
   };
 
-  App.prototype.reply = function(message) {
+  app.reply = function(message) {
     this.activeThread.reply(message);
   };
 
-  App.prototype.onKeyDown = function(e) {
+  app.onKeyDown = function(e) {
     var modifiers =
       (e.ctrlKey ? 'c' : '') +
       (e.altKey ? 'a' : '') +
@@ -544,7 +596,7 @@ var Hoth = (function() {
       (e.metaKey ? 'm' : '');
   };
 
-  App.prototype.onHashChange = function() {
+  app.onHashChange = function() {
     var hash = location.hash;
     if (hash.length <= 1) return;
     if (hash[1] === '{') {
@@ -554,13 +606,43 @@ var Hoth = (function() {
     this.activeThread = this.topic(hash.substr(1));
   };
 
-  return {
-    App: App,
-    User: User,
-    Thread: Thread,
-    ChatMessage: ChatMessage,
-    SystemMessage: SystemMessage,
-    Message: Message
-  };
+  Object.defineProperty(app, 'currentUser', {
+    get: function () {
+      return currentUser;
+    }
+  });
+
+  var socket = io.connect(location.protocol + '//' + location.host);
+
+  socket.on('system', function(data) {
+    Thread.get(data.thread, function(thread) {
+      if (thread && data.body) {
+        thread.append(new SystemMessage({ body: data.body }));
+      }
+    });
+  }.bind(this));
+
+  socket.on('chat', function(data) {
+    User.get(data.author, function(user) {
+      Thread.get(data.thread, function(thread) {
+        thread.append(new ChatMessage({
+          author: user,
+          body: data.body
+        }));
+      });
+    });
+  });
+
+  socket.on('open thread', function(name) {
+    app.append(Thread.topic(name));
+  });
+
+  app.User = User;
+  app.Thread = Thread;
+  app.ChatMessage = ChatMessage;
+  app.SystemMessage = SystemMessage;
+  app.Message = Message;
+
+  return app;
 
 }());
