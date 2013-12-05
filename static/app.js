@@ -452,7 +452,8 @@ var Hoth = (function() {
   };
 
   Prompt.prototype.autosize = function() {
-    this.elMeasure.textContent = this.elInput.value + 'X';
+    this.elMeasure.style.width = this.elInput.offsetWidth + 'px';
+    this.elMeasure.textContent = this.elInput.value.replace(/(^|\n)$/, '$1X');
     var height = this.elMeasure.offsetHeight;
     if (this.height !== height) {
       this.height = height;
