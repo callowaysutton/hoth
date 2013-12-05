@@ -108,6 +108,7 @@ var Hoth = (function() {
         prompt.thread = this;
         this.elMessages.appendChild(prompt.element);
       }
+      this.shouldAutoscroll = true;
       this.contentChanged();
     },
     get: function() {
@@ -244,7 +245,6 @@ var Hoth = (function() {
     var max = Math.max(this.contentSize, this.viewportSize);
     if (!property) {
       this.shouldAutoscroll = max - this.viewportSize - this.scroll <= Thread.AUTOSCROLL_THRESHOLD;
-      console.log(this.shouldAutoscroll);
     }
     var x = (max - this.scroll) / this.viewportSize;
     var y = (max - (this.scroll + this.viewportSize)) / this.viewportSize;
@@ -510,6 +510,7 @@ var Hoth = (function() {
     this.threads.push(thread);
     this.element.appendChild(thread.element);
     thread.app = this;
+    thread.viewportChanged();
   };
 
   App.prototype.layout = function() {
