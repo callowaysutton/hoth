@@ -26,7 +26,7 @@ var Hoth = (function() {
     var i = 0;
     while (i < string.length) {
       var x;
-      if (x = /^#([^\s{}]+?)([\.,;:\)]*(\s|$))/.exec(string.slice(i))) {
+      if (x = /^#([^\s{}]+?)([\.!?"',;:\)]*(\s|$))/.exec(string.slice(i))) {
         if (!topic) topic = x[1];
         result += '<a href="#' + escapeXML(x[1]) + '">#' + escapeXML(x[1]) + '</a>' + escapeXML(x[2]);
         i += x[0].length;
