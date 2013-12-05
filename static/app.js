@@ -35,6 +35,7 @@ var Hoth = (function() {
   Thread.prototype.template = function() {
     this.element = el('hoth-thread');
     this.element.appendChild(this.elName = el('hoth-thread-name'));
+    this.element.appendChild(this.elDropZone = el('hoth-thread-drop-zone'));
     this.element.appendChild(this.elContent = el('hoth-thread-content'));
     this.elContent.appendChild(this.elScrollbar = el('hoth-thread-scrollbar'));
     this.elScrollbar.appendChild(this.elMarkers = el('hoth-thread-markers'));
@@ -161,6 +162,19 @@ var Hoth = (function() {
     this.scroll = contentSize - x * viewportSize;
   };
 
+  Thread.prototype.onDragOver = function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  Thread.prototype.onDragEnter = function() {
+    this.element.classList.add('drag-over');
+  };
+
+  Thread.prototype.onDragLeave = function() {
+    this.element.classList.remove('drag-over');
+  };
+
   Thread.prototype.viewportChanged = function() {
     this.viewportSize = this.elContent.offsetHeight;
     this.scrollbarSize = this.elScrollbar.offsetHeight;
@@ -268,6 +282,9 @@ var Hoth = (function() {
   var ChatMessage = function(data) {
     Message.call(this, data);
 
+    this.onDragMove = this.onDragMove.bind(this);
+    this.onDragEnd = this.onDragEnd.bind(this);
+
     if (data.author) this.author = data.author;
   };
   ChatMessage.prototype = Object.create(Message.prototype);
@@ -288,6 +305,38 @@ var Hoth = (function() {
     this.element.classList.add('chat');
 
     this.elHeader.appendChild(this.elAuthor = el('hoth-message-author'));
+    this.element.addEventListener('mousedown', this.onDragStart.bind(this));
+  };
+
+  ChatMessage.prototype.onDragStart = function(e) {
+    if (!this.thread || !this.thread.app || this.thread.app.user !== this.author || true) {
+      return;
+    }
+    e.preventDefault();
+
+    var bb = this.element.getBoundingClientRect();
+    this.dragX = bb.left - e.clientX;
+    this.dragY = bb.top - e.clientY;
+
+    this.element.classList.add('dragging');
+
+    document.body.appendChild(this.element);
+    this.element.style.position = 'absolute';
+    this.element.style.left = bb.left + 'px';
+    this.element.style.top = bb.top + 'px';
+
+    document.addEventListener('mousemove', this.onDragMove);
+    document.addEventListener('mouseup', this.onDragEnd);
+  };
+
+  ChatMessage.prototype.onDragMove = function(e) {
+
+  };
+
+  ChatMessage.prototype.onDragEnd = function(e) {
+    this.element.classList.remove('dragging');
+    document.removeEventListener('mousemove', this.onDragMove);
+    document.removeEventListener('mouseup', this.onDragEnd);
   };
 
   var SystemMessage = function(data) {
