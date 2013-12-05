@@ -10,4 +10,11 @@ var app = new Hoth.App();
 document.body.appendChild(app.element);
 app.layout();
 
+for (var i = 0; i < 100; i++) {
+  app.reply(new Hoth.ChatMessage({
+    author: app.user,
+    body: 'Hello ' + i + '!'
+  }));
+}
+
 </script>
