@@ -420,7 +420,7 @@ var Hoth = (function() {
 
   Prompt.prototype.sendCommand = function(command) {
     this.thread.reply(new SystemMessage({
-      body: 'Commands are not implemented'
+      body: 'Commands are not implemented.'
     }));
   };
 
