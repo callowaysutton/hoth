@@ -387,13 +387,21 @@ var Hoth = (function() {
         this.send(this.elInput.value);
       }
       this.elInput.value = '';
+      this.autosize();
       e.preventDefault();
     }
   };
 
   Prompt.prototype.autosize = function() {
     this.elMeasure.textContent = this.elInput.value + 'X';
-    this.elInput.style.height = this.elMeasure.offsetHeight + 'px';
+    var height = this.elMeasure.offsetHeight;
+    if (this.height !== height) {
+      this.height = height;
+      this.elInput.style.height = height + 'px';
+      if (this.thread) {
+        this.thread.contentChanged();
+      }
+    }
   };
 
   Prompt.prototype.send = function(value) {
