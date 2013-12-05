@@ -24,6 +24,15 @@ var Hoth = (function() {
     this.$scroll = 0;
     this.$prompt = null;
 
+    this.onMouseMove = this.onMouseMove.bind(this);
+    this.onMouseUp = this.onMouseUp.bind(this);
+
+    this.template();
+
+    this.name = data.name;
+  };
+
+  Thread.prototype.template = function() {
     this.element = el('hoth-thread');
     this.element.appendChild(this.elName = el('hoth-thread-name'));
     this.element.appendChild(this.elContent = el('hoth-thread-content'));
@@ -33,23 +42,8 @@ var Hoth = (function() {
     this.elContent.appendChild(this.elWrap = el('hoth-thread-wrap'));
     this.elWrap.appendChild(this.elMessages = el('hoth-thread-messages'));
 
-    this.elScrollbar.addEventListener('mousedown', function(e) {
-      this.dragging = true;
-      this.drag(e);
-      e.preventDefault();
-      document.addEventListener('mousemove', this.onMouseMove);
-      document.addEventListener('mouseup', this.onMouseUp);
-    }.bind(this));
-    this.onMouseMove = this.onMouseMove.bind(this);
-    this.onMouseUp = this.onMouseUp.bind(this);
-
-    this.element.addEventListener('mousewheel', function(e) {
-      this.shouldAutoscroll = false;
-      this.scroll -= e.wheelDeltaY;
-      this.updateScroll();
-    }.bind(this));
-
-    this.name = data.name;
+    this.elScrollbar.addEventListener('mousedown', this.onMouseDown.bind(this));
+    this.element.addEventListener('mousewheel', this.onMouseWheel.bind(this));
   };
 
   Object.defineProperty(Thread.prototype, 'name', {
@@ -85,6 +79,12 @@ var Hoth = (function() {
     },
     get: function() {
       return this.$prompt;
+    }
+  });
+
+  Object.defineProperty(Thread.prototype, 'lastMessage', {
+    get: function() {
+      return this.messages[this.messages.length - 1];
     }
   });
 
@@ -125,19 +125,33 @@ var Hoth = (function() {
     this.append(message);
   };
 
+  Thread.prototype.onMouseWheel = function(e) {
+    this.shouldAutoscroll = false;
+    this.scroll -= e.wheelDeltaY;
+    this.updateScroll();
+  };
+
   Thread.prototype.onMouseMove = function(e) {
     if (!this.dragging) return;
-    this.drag(e);
+    this.dragScrollbar(e);
+  };
+
+  Thread.prototype.onMouseDown = function(e) {
+    this.dragging = true;
+    this.dragScrollbar(e);
+    e.preventDefault();
+    document.addEventListener('mousemove', this.onMouseMove);
+    document.addEventListener('mouseup', this.onMouseUp);
   };
 
   Thread.prototype.onMouseUp = function(e) {
     this.dragging = false;
-    this.drag(e);
+    this.dragScrollbar(e);
     document.removeEventListener('mousemove', this.onMouseMove);
     document.removeEventListener('mouseup', this.onMouseUp);
   };
 
-  Thread.prototype.drag = function(e) {
+  Thread.prototype.dragScrollbar = function(e) {
     var scrollbarSize = this.elScrollbar.offsetHeight;
     var viewportSize = this.elContent.offsetHeight;
     var contentSize = Math.max(viewportSize, this.elWrap.offsetHeight);
