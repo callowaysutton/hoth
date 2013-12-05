@@ -415,6 +415,7 @@ var Hoth = (function() {
 
   return {
     App: App,
+    User: User,
     Thread: Thread,
     ChatMessage: ChatMessage,
     SystemMessage: SystemMessage,
