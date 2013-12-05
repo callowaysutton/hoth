@@ -55,8 +55,8 @@ var Hoth = (function() {
     this.$scroll = 0;
     this.$prompt = null;
 
-    this.onMouseMove = this.onMouseMove.bind(this);
-    this.onMouseUp = this.onMouseUp.bind(this);
+    this.onScrollMouseMove = this.onScrollMouseMove.bind(this);
+    this.onScrollMouseUp = this.onScrollMouseUp.bind(this);
 
     this.template();
 
@@ -73,7 +73,8 @@ var Hoth = (function() {
     this.elContent.appendChild(this.elWrap = el('hoth-thread-wrap'));
     this.elWrap.appendChild(this.elMessages = el('hoth-thread-messages'));
 
-    this.elScrollbar.addEventListener('mousedown', this.onMouseDown.bind(this));
+    this.elScrollbar.addEventListener('mousedown', this.onScrollMouseDown.bind(this));
+    this.element.addEventListener('click', this.onClick.bind(this));
     this.element.addEventListener('mousewheel', this.onMouseWheel.bind(this));
   };
 
@@ -107,6 +108,7 @@ var Hoth = (function() {
         prompt.thread = this;
         this.elMessages.appendChild(prompt.element);
       }
+      this.contentChanged();
     },
     get: function() {
       return this.$prompt;
@@ -162,24 +164,33 @@ var Hoth = (function() {
     this.updateScroll();
   };
 
-  Thread.prototype.onMouseMove = function(e) {
+  Thread.prototype.onClick = function() {
+    if (this.app && document.getSelection().isCollapsed) {
+      this.app.activeThread = this;
+      if (this.prompt) {
+        this.prompt.focus();
+      }
+    }
+  };
+
+  Thread.prototype.onScrollMouseMove = function(e) {
     if (!this.dragging) return;
     this.dragScrollbar(e);
   };
 
-  Thread.prototype.onMouseDown = function(e) {
+  Thread.prototype.onScrollMouseDown = function(e) {
     this.dragging = true;
     this.dragScrollbar(e);
     e.preventDefault();
-    document.addEventListener('mousemove', this.onMouseMove);
-    document.addEventListener('mouseup', this.onMouseUp);
+    document.addEventListener('mousemove', this.onScrollMouseMove);
+    document.addEventListener('mouseup', this.onScrollMouseUp);
   };
 
-  Thread.prototype.onMouseUp = function(e) {
+  Thread.prototype.onScrollMouseUp = function(e) {
     this.dragging = false;
     this.dragScrollbar(e);
-    document.removeEventListener('mousemove', this.onMouseMove);
-    document.removeEventListener('mouseup', this.onMouseUp);
+    document.removeEventListener('mousemove', this.onScrollMouseMove);
+    document.removeEventListener('mouseup', this.onScrollMouseUp);
   };
 
   Thread.prototype.dragScrollbar = function(e) {
@@ -231,8 +242,9 @@ var Hoth = (function() {
 
   Object.prototype.updateScroll = function(property) {
     var max = Math.max(this.contentSize, this.viewportSize);
-    if (property) {
-      this.shouldAutoscroll = max - this.viewportSize - this.scroll >= Thread.AUTOSCROLL_THRESHOLD;
+    if (!property) {
+      this.shouldAutoscroll = max - this.viewportSize - this.scroll <= Thread.AUTOSCROLL_THRESHOLD;
+      console.log(this.shouldAutoscroll);
     }
     var x = (max - this.scroll) / this.viewportSize;
     var y = (max - (this.scroll + this.viewportSize)) / this.viewportSize;
