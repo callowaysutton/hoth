@@ -452,11 +452,11 @@ var Hoth = (function() {
 
     this.element = el('hoth-app');
 
-    this.main = this.topic('main');
-    this.append(this.main);
+    this.lobby = this.topic('lobby');
+    this.append(this.lobby);
 
     this.prompt = new Prompt;
-    this.activeThread = this.main;
+    this.activeThread = this.lobby;
 
     document.body.addEventListener('keydown', this.onKeyDown.bind(this));
     window.addEventListener('resize', this.layout.bind(this));
