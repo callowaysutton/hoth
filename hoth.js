@@ -72,10 +72,12 @@ io.sockets.on('connection', function(socket) {
 
   socket.on('chat', function(data) {
     socket.broadcast.emit('chat', data);
+    socket.broadcast.emit('open thread', data.thread);
   });
 
   socket.on('system', function(data) {
     socket.broadcast.emit('system', data);
+    socket.broadcast.emit('open thread', data.thread);
   });
 
   socket.on('open thread', function(name) {
