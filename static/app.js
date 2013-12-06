@@ -772,11 +772,11 @@ var Hoth = (function() {
 
   // Threads
 
-  commands.close = function() {
+  commands.close = commands.c = function() {
     app.activeThread.close();
   };
 
-  commands.fork = function() {
+  commands.fork = commands.f = function() {
     app.activeThread = new Thread;
   };
 
