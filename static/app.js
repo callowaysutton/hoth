@@ -740,7 +740,7 @@ var Hoth = (function() {
   };
   commands.list = function() {
     var list = [];
-    for (i=0;i<threads.length;i++){
+    for (var i=0;i<threads.length;i++){
       if (threads[i].$name != undefined){
         list.push(threads[i].$name);
       }
