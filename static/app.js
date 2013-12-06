@@ -85,10 +85,11 @@ var Hoth = (function() {
 
   Thread.get = function(id, callback) {
     if (id[0] === '#') {
-      callback(Thread.topic(id.slice(1)));
+      callback(null, Thread.topic(id.slice(1)));
     } else if (id[0] === '!') {
-      callback(Thread.temp(id.slice(1)));
+      callback(null, Thread.temp(id.slice(1)));
     }
+    callback(new TypeError);
   };
 
   Thread.temp = function(uid) {
@@ -461,7 +462,6 @@ var Hoth = (function() {
     this.elMeasure.textContent = 'X';
 
     this.elInput.placeholder = 'Say something\u2026';
-    this.elInput.autofocus = true;
     this.elInput.style.height = this.elMeasure.offsetHeight + 'px';
 
     this.elInput.addEventListener('input', this.autosize.bind(this));
@@ -813,11 +813,12 @@ var Hoth = (function() {
 
   User.get = function(id, callback) {
     if (User.map[id]) {
-      callback(User.map[id]);
+      callback(null, User.map[id]);
       return;
     }
-    socket.emit('user', id, function(data) {
-      callback(User.map[id] = new User(data));
+    socket.emit('user', id, function(err, data) {
+      if (err) return callback(err);
+      callback(null, User.map[id] = new User(data));
     });
   };
 
@@ -832,6 +833,26 @@ var Hoth = (function() {
     this.element = el('hoth-app');
     document.body.appendChild(this.element);
 
+    this.element.appendChild(this.elLightbox = el('hoth-lightbox'));
+    this.element.appendChild(this.elSignInForm = el('hoth-sign-in-form sign-in'));
+    this.elSignInForm.appendChild(this.elUsername = el('hoth-sign-in-input', 'input'));
+    this.elUsername.autofocus = true;
+    this.elUsername.placeholder = 'Username';
+    this.elSignInForm.appendChild(this.elPassword = el('hoth-sign-in-input', 'input'));
+    this.elPassword.type = 'password';
+    this.elPassword.placeholder = 'Password';
+    this.elSignInForm.appendChild(this.elConfirmPassword = el('hoth-sign-in-input register-only', 'input'));
+    this.elConfirmPassword.type = 'password';
+    this.elConfirmPassword.placeholder = 'Confirm Password';
+    this.elSignInForm.appendChild(this.elSignInButton = el('hoth-sign-in-button sign-in-only', 'button'));
+    this.elSignInButton.textContent = 'Sign In';
+    this.elSignInForm.appendChild(this.elRegisterButton = el('hoth-sign-in-button sign-in-only', 'button'));
+    this.elRegisterButton.textContent = 'Create Account';
+    this.elSignInForm.appendChild(this.elRegisterBackButton = el('hoth-sign-in-button register-only', 'button'));
+    this.elRegisterBackButton.textContent = 'Back';
+    this.elSignInForm.appendChild(this.elRegisterGoButton = el('hoth-sign-in-button register-only', 'button'));
+    this.elRegisterGoButton.textContent = 'Go';
+
     this.lobby = Thread.topic('lobby');
     this.append(this.lobby);
 
@@ -844,6 +865,104 @@ var Hoth = (function() {
     document.body.addEventListener('keydown', this.onKeyDown.bind(this));
     window.addEventListener('resize', this.layout.bind(this));
     window.addEventListener('hashchange', this.onHashChange.bind(this));
+
+    this.elSignInButton.addEventListener('click', this.onSignInClick.bind(this));
+    this.elRegisterButton.addEventListener('click', this.onRegisterClick.bind(this));
+    this.elRegisterBackButton.addEventListener('click', this.onRegisterBackClick.bind(this));
+    this.elRegisterGoButton.addEventListener('click', this.onRegisterGoClick.bind(this));
+  };
+
+  app.showSignIn = function() {
+    this.elLightbox.style.display = 'block';
+    this.elSignInForm.style.display = 'block';
+    this.elUsername.value = localStorage.getItem('hoth.username');
+    this.focusSignIn();
+  };
+
+  app.hideSignIn = function() {
+    this.elLightbox.style.display = 'none';
+    this.elSignInForm.style.display = 'none';
+    setTimeout(function() {
+      app.prompt.focus();
+    });
+  };
+
+  app.focusSignIn = function() {
+    setTimeout(function() {
+      if (!this.elUsername.value) {
+        this.elUsername.focus();
+      } else if (!this.elPassword.value) {
+        this.elPassword.focus();
+      } else {
+        this.elConfirmPassword.focus();
+      }
+    }.bind(this));
+  };
+
+  app.onSignInClick = function() {
+    this.removeSignInFeedback();
+    socket.emit('sign in', {
+      name: this.elUsername.value,
+      password: this.elPassword.value
+    }, function(err, userData) {
+      if (err) {
+        app.elUsername.classList.add('error');
+        app.elPassword.classList.add('error');
+        return;
+      }
+      app.signIn(new User(userData));
+    });
+  };
+
+  app.onRegisterClick = function() {
+    this.removeSignInFeedback();
+    this.elSignInForm.classList.remove('sign-in');
+    this.elSignInForm.classList.add('register');
+    this.focusSignIn();
+  };
+
+  app.onRegisterBackClick = function() {
+    this.removeSignInFeedback();
+    this.elSignInForm.classList.add('sign-in');
+    this.elSignInForm.classList.remove('register');
+    this.focusSignIn();
+  };
+
+  app.onRegisterGoClick = function() {
+    this.removeSignInFeedback();
+    if (this.elPassword.value < 8) {
+      this.elPassword.classList.add('error');
+      return;
+    }
+    if (this.elConfirmPassword.value !== this.elPassword.value) {
+      this.elConfirmPassword.classList.add('error');
+      return;
+    }
+    socket.emit('create account', {
+      name: this.elUsername.value,
+      password: this.elPassword.value
+    }, function(err, userData) {
+      if (err === 'user already exists' || err === 'bad username') {
+        app.elUsername.classList.add('error');
+        return;
+      } else if (err) {
+        app.elPassword.classList.add('error');
+        return;
+      }
+      app.signIn(new User(userData));
+    });
+  };
+
+  app.removeSignInFeedback = function() {
+    this.elUsername.classList.remove('error');
+    this.elPassword.classList.remove('error');
+    this.elConfirmPassword.classList.remove('error');
+  };
+
+  app.signIn = function(user) {
+    currentUser = user;
+    this.hideSignIn();
+    socket.emit('init');
   };
 
   Object.defineProperty(app, 'prompt', {
@@ -929,7 +1048,8 @@ var Hoth = (function() {
 
   app.runHash = function(json) {
     if (json.goto) {
-      Thread.get(json.goto, function(thread) {
+      Thread.get(json.goto, function(err, thread) {
+        if (err) return;
         app.activeThread = thread;
       });
     }
@@ -982,16 +1102,19 @@ var Hoth = (function() {
   var socket = io.connect(location.protocol + '//' + location.host);
 
   socket.on('system', function(data) {
-    Thread.get(data.thread, function(thread) {
-      if (thread && data.body) {
+    Thread.get(data.thread, function(err, thread) {
+      if (err) return;
+      if (data.body) {
         thread.append(new SystemMessage({ body: data.body }));
       }
     });
   }.bind(this));
 
   socket.on('chat', function(data) {
-    User.get(data.author, function(user) {
-      Thread.get(data.thread, function(thread) {
+    User.get(data.author, function(err, user) {
+      if (err) return;
+      Thread.get(data.thread, function(err, thread) {
+        if (err) return;
         notify({
           title: user.name + (thread.id ? ' (' + thread.id + ')' : ''),
           body: data.body
@@ -1010,10 +1133,8 @@ var Hoth = (function() {
     });
   });
 
-  socket.on('init', function(data) {
-    currentUser = new User(data.user);
-    Hoth.init();
-  });
+  app.init();
+  app.showSignIn();
 
   app.User = User;
   app.Thread = Thread;
