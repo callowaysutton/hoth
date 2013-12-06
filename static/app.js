@@ -718,6 +718,16 @@ var Hoth = (function() {
     }));
   };
 
+  commands.help = function() {
+    var list = [];
+    for (var key in commands) if (Object.prototype.hasOwnProperty.call(commands, key)) {
+      list.push(key);
+    }
+    app.activeThread.append(new SystemMessage({
+      body: 'Commands:\n' + list.join('\n')
+    }));
+  };
+
   // Control flow
 
   commands.repeat = function(n, command) {
