@@ -866,6 +866,9 @@ var Hoth = (function() {
     window.addEventListener('resize', this.layout.bind(this));
     window.addEventListener('hashchange', this.onHashChange.bind(this));
 
+    this.elUsername.addEventListener('keydown', this.onKeySubmit.bind(this));
+    this.elPassword.addEventListener('keydown', this.onKeySubmit.bind(this));
+    this.elConfirmPassword.addEventListener('keydown', this.onKeySubmit.bind(this));
     this.elSignInButton.addEventListener('click', this.onSignInClick.bind(this));
     this.elRegisterButton.addEventListener('click', this.onRegisterClick.bind(this));
     this.elRegisterBackButton.addEventListener('click', this.onRegisterBackClick.bind(this));
@@ -899,12 +902,25 @@ var Hoth = (function() {
     }.bind(this));
   };
 
+  app.onKeySubmit = function(e) {
+    if (e.keyCode === 13) {
+      if (this.elSignInForm.classList.contains('register')) {
+        this.onRegisterGoClick();
+      } else {
+        this.onSignInClick();
+      }
+    }
+  };
+
   app.onSignInClick = function() {
+    if (this.elSignInButton.disabled) return;
     this.removeSignInFeedback();
+    this.elSignInButton.disabled = true;
     socket.emit('sign in', {
       name: this.elUsername.value,
       password: this.elPassword.value
     }, function(err, userData) {
+      app.elSignInButton.disabled = false;
       if (err) {
         app.elUsername.classList.add('error');
         app.elPassword.classList.add('error');
@@ -929,6 +945,7 @@ var Hoth = (function() {
   };
 
   app.onRegisterGoClick = function() {
+    if (this.elRegisterGoButton.disabled) return;
     this.removeSignInFeedback();
     if (this.elPassword.value < 8) {
       this.elPassword.classList.add('error');
@@ -938,10 +955,12 @@ var Hoth = (function() {
       this.elConfirmPassword.classList.add('error');
       return;
     }
+    this.elRegisterGoButton.disabled = true;
     socket.emit('create account', {
       name: this.elUsername.value,
       password: this.elPassword.value
     }, function(err, userData) {
+      app.elRegisterGoButton.disabled = false;
       if (err === 'user already exists' || err === 'bad username') {
         app.elUsername.classList.add('error');
         return;
