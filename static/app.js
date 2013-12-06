@@ -50,6 +50,8 @@ var Hoth = (function() {
   };
 
   var Thread = function(data) {
+    if (!data) data = {};
+
     this.messages = [];
     this.shouldAutoscroll = true;
     this.contentSize = 0;
@@ -773,6 +775,17 @@ var Hoth = (function() {
   commands.close = function() {
     app.activeThread.close();
   };
+
+  commands.fork = function() {
+    app.activeThread = new Thread;
+  };
+
+  Object.defineProperty(environment, 'thread', {
+    enumerable: true,
+    get: function() {
+      return app.activeThread.id;
+    }
+  });
 
   var User = function(data) {
     this.name = data.name;
