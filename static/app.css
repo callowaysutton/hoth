@@ -8,6 +8,7 @@ body {
   right: 0;
   bottom: 0;
   background: #eee;
+  color: #000;
   overflow: auto;
   position: absolute;
   font: 11px Lucida Grande, Tahoma, sans-serif;
@@ -128,6 +129,7 @@ body {
   background: 0;
   outline: 0;
   font: inherit;
+  color: inherit;
   width: 100%;
   resize: none;
 }
