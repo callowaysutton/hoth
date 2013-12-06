@@ -836,7 +836,10 @@ var Hoth = (function() {
     this.append(this.lobby);
 
     this.prompt = new Prompt;
-    this.activeThread = this.lobby;
+    this.onHashChange();
+    if (!this.activeThread) {
+      this.activeThread = this.lobby;
+    }
 
     document.body.addEventListener('keydown', this.onKeyDown.bind(this));
     window.addEventListener('resize', this.layout.bind(this));
