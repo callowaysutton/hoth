@@ -73,6 +73,9 @@ var Hoth = (function() {
       socket.emit('create thread', function(uid) {
         this.uid = uid;
         Thread.temps[uid] = this;
+        if (app.activeThread === this) {
+          location.hash = this.permalink;
+        }
       }.bind(this));
     }
   };
@@ -214,6 +217,12 @@ var Hoth = (function() {
   Object.defineProperty(Thread.prototype, 'id', {
     get: function() {
       return this.name ? '#' + this.name : this.uid ? '!' + this.uid : null;
+    }
+  });
+
+  Object.defineProperty(Thread.prototype, 'permalink', {
+    get: function() {
+      return this.name ? '#' + this.name : this.uid ? '#' + JSON.stringify({ goto: '!' + this.uid }) : null;
     }
   });
 
@@ -860,8 +869,8 @@ var Hoth = (function() {
         if (!thread.open) {
           this.append(thread);
         }
-        if (thread.name) {
-          location.hash = '#' + thread.name;
+        if (thread.permalink) {
+          location.hash = thread.permalink;
         }
         thread.element.scrollIntoView();
         if (this.prompt) {
