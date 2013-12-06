@@ -21,7 +21,7 @@ db.once('open', function() {
   userSchema.methods.toJSON = function() {
     return {
       name: this.name,
-      id: this.id
+      id: this._id
     };
   };
 
@@ -123,7 +123,8 @@ db.once('open', function() {
 
     socket.on('user', function(id, callback) {
       User.findById(id, function(err, user) {
-        if (err) callback(err);
+        if (err) return callback('internal error');
+        if (!user) return callback('user not found');
         callback(null, user.toJSON());
       });
     });
@@ -145,7 +146,7 @@ db.once('open', function() {
     socket.on('create thread', function(callback) {
       var uid = nextUID++;
       socket.broadcast.emit('open thread', '!' + uid);
-      callback(uid);
+      callback(null, uid);
     });
 
   });

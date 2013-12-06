@@ -70,7 +70,8 @@ var Hoth = (function() {
     if (this.id) {
       socket.emit('open thread', this.id);
     } else {
-      socket.emit('create thread', function(uid) {
+      socket.emit('create thread', function(err, uid) {
+        if (err) return;
         this.uid = uid;
         Thread.temps[uid] = this;
         if (app.activeThread === this) {
@@ -1147,7 +1148,8 @@ var Hoth = (function() {
   });
 
   socket.on('open thread', function(name) {
-    Thread.get(name, function(thread) {
+    Thread.get(name, function(err, thread) {
+      if (err) return;
       app.append(thread);
     });
   });
