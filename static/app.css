@@ -90,6 +90,13 @@ body {
 .hoth-message.system {
   background-color: #f8f8f8;
 }
+.hoth-message.error {
+  background-color: #fff5f5;
+  color: #a00;
+}
+.hoth-message.error .hoth-message-body {
+  font: 11px Menlo, Monaco, Consolas, Courier New, monospace;
+}
 .hoth-message:first-child {
   border-top: 0;
 }
@@ -103,6 +110,9 @@ body {
 .hoth-message-time {
   color: rgba(0, 0, 0, .4);
   float: right;
+}
+.hoth-message-body {
+  min-height: 16px;
 }
 .hoth-message-body,
 .hoth-message-measure {

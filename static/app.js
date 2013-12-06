@@ -176,6 +176,14 @@ var Hoth = (function() {
     this.contentChanged();
   };
 
+  Thread.prototype.close = function() {
+    if (this !== app.lobby) {
+      var i = app.threads.indexOf(this);
+      this.delete();
+      app.activeThread = app.threads[i] || app.threads[i - 1] || app.threads[0];
+    }
+  };
+
   Thread.prototype.delete = function() {
     if (!this.open) return;
 
@@ -187,7 +195,7 @@ var Hoth = (function() {
     if (i !== -1) {
       app.threads.splice(i, 1);
     }
-    this.open = true;
+    this.open = false;
 
     if (this.prompt) {
       this.prompt = null;
@@ -422,6 +430,17 @@ var Hoth = (function() {
     this.element.classList.add('system');
   };
 
+  var ErrorMessage = function(data) {
+    Message.call(this, data);
+  };
+  ErrorMessage.prototype = Object.create(Message.prototype);
+
+  ErrorMessage.prototype.template = function() {
+    Message.prototype.template.call(this);
+
+    this.element.classList.add('error');
+  };
+
   var Prompt = function(data) {
     this.element = el('hoth-message');
     this.element.appendChild(this.elBody = el('hoth-message-body'));
@@ -488,13 +507,261 @@ var Hoth = (function() {
   };
 
   Prompt.prototype.sendCommand = function(command) {
-    this.thread.append(new SystemMessage({
-      body: 'Commands are not implemented.'
-    }));
+    try {
+      new Script(command).run();
+    } catch (e) {
+      app.activeThread.append(new ErrorMessage({
+        body: e.stack || e.toString()
+      }));
+    }
   };
 
   Prompt.prototype.focus = function() {
     this.elInput.focus();
+  };
+
+  var ScriptError = function(message, source, position) {
+    this.message = message;
+    this.source = source;
+    this.position = position;
+  };
+
+  ScriptError.prototype.toString = function() {
+    var i = this.position;
+    var lines = this.source.split(/\r?\n|\r/);
+    while (i > lines[0].length) {
+      i -= lines[0].length;
+      lines.shift();
+    }
+    return 'Error: ' + this.message + '\n' + lines[0] + '\n' + Array(i + 1).join(' ') + '^';
+  };
+
+  var StringStream = function(string, start, end) {
+    this.string = string;
+    this.start = start == null ? 0 : start;
+    this.end = end == null ? string.length : end;
+    this.length = this.end - this.start;
+    this.position = 0;
+  };
+
+  StringStream.prototype.reset = function() {
+    this.position = 0;
+  };
+
+  StringStream.prototype.peek = function() {
+    if (this.position < 0 || this.position >= this.length) {
+      return '';
+    }
+    return this.string[this.start + this.position];
+  };
+
+  StringStream.prototype.next = function() {
+    if (this.position < 0 || this.position >= this.length) {
+      return '';
+    }
+    return this.string[this.start + this.position++];
+  };
+
+  StringStream.prototype.save = function() {
+    return this.position;
+  };
+
+  StringStream.prototype.restore = function(state) {
+    this.position = state;
+  };
+
+  Object.defineProperty(StringStream.prototype, 'whitespace', {
+    get: function() {
+      var c = this.peek();
+      return c === ' ' || c === '\t';
+    }
+  });
+
+  Object.defineProperty(StringStream.prototype, 'newline', {
+    get: function() {
+      var c = this.peek();
+      return c === '\n' || c === '\r';
+    }
+  });
+
+  Object.defineProperty(StringStream.prototype, 'wordChar', {
+    get: function() {
+      var c = this.peek();
+      return c && !this.whitespace && !this.newline && c !== '$' && c !== ';' && c !== '(' && c !== ')' && c !== '{' && c !== '}';
+    }
+  });
+
+  Object.defineProperty(StringStream.prototype, 'atEnd', {
+    get: function() {
+      return this.position >= this.end;
+    }
+  });
+
+  StringStream.prototype.consume = function(c) {
+    if (this.peek() === c) {
+      this.next();
+      return true;
+    }
+    return false;
+  };
+
+  StringStream.prototype.require = function(c) {
+    if (this.peek() !== c) {
+      this.error(c + ' expected', this.save());
+    }
+    this.next();
+  };
+
+  StringStream.prototype.word = function() {
+    var value = '';
+    while (this.wordChar) {
+      value += this.next();
+    }
+    return value;
+  };
+
+  StringStream.prototype.skipSpace = function() {
+    while (this.whitespace) {
+      this.next();
+    }
+  };
+
+  StringStream.prototype.skipNewline = function() {
+    while (this.newline) {
+      this.next();
+    }
+  };
+
+  StringStream.prototype.error = function(message, place) {
+    throw new ScriptError(message, this.string, place);
+  };
+
+  var Script = function(source) {
+    this.stream = new StringStream(source);
+  };
+
+  Script.prototype.run = function() {
+    this.stream.reset();
+    var expression;
+    while (!this.stream.atEnd) {
+      this.execCommand();
+      while (this.stream.newline || this.stream.whitespace) {
+        this.stream.next();
+      }
+    }
+  };
+
+  Script.prototype.execCommand = function() {
+    while (this.stream.newline || this.stream.whitespace) {
+      this.stream.next();
+    }
+    var start = this.stream.save();
+    var name = this.stream.word();
+    if (!name) this.stream.error('Name expected', start);
+
+    var args = [];
+    do {
+      var arg = this.execArg();
+      if (arg) {
+        args.push(arg);
+      }
+    } while (arg);
+
+    if (!commands[name]) {
+      this.stream.error(name + ' is undefined', start);
+    }
+    return commands[name].apply(null, args);
+  };
+
+  Script.prototype.execArg = function() {
+    this.stream.skipSpace();
+    if (this.stream.wordChar) {
+      return this.stream.word();
+    }
+    if (this.stream.consume('$')) {
+      return environment[this.execArg()];
+    }
+    if (this.stream.consume('(')) {
+      var result = this.execCommand();
+      this.stream.require(')');
+      return result;
+    }
+    if (this.stream.consume('{')) {
+      var result = '';
+      var brackets = 1;
+      for (;;) {
+        var c = this.stream.next();
+        if (!c) {
+          this.stream.error('Expected }', this.stream.save());
+        }
+        if (c === '{') {
+          brackets += 1;
+        } else if (c === '}') {
+          if (brackets === 1) break;
+          brackets -= 1;
+        }
+        result += c;
+      }
+      return result;
+    }
+  };
+
+  var environment = {};
+
+  var commands = {};
+
+  // Debugging
+
+  commands.log = function() {
+    app.activeThread.append(new SystemMessage({
+      body: [].join.call(arguments, ' ')
+    }));
+  };
+
+  // Control flow
+
+  commands.repeat = function(n, command) {
+    for (var i = 0; i < n; i++) {
+      new Script(command).run();
+    }
+  };
+
+  // Variables
+
+  commands.set = function(name, value) {
+    environment[name] = value;
+  };
+
+  commands.change = function(name, value) {
+    environment[name] = Number(environment[name]) + Number(value);
+  };
+
+  // Arithmetic
+
+  commands['+'] = function() {
+    return [].reduce.call(arguments, function(x, y) {
+      return x + Number(y);
+    }, 0);
+  };
+
+  commands['-'] = function(x, y) {
+    return Number(x) - Number(y);
+  };
+
+  commands['*'] = function() {
+    return [].reduce.call(arguments, function(x, y) {
+      return x * Number(y);
+    }, 1);
+  };
+
+  commands['/'] = function(x, y) {
+    return Number(x) / Number(y);
+  };
+
+  // Threads
+
+  commands.close = function() {
+    app.activeThread.close();
   };
 
   var User = function(data) {
@@ -557,10 +824,10 @@ var Hoth = (function() {
     set: function(thread) {
       if (this.$activeThread === thread) return;
 
-      if (!thread.open) {
-        this.append(thread);
-      }
       if (this.$activeThread = thread) {
+        if (!thread.open) {
+          this.append(thread);
+        }
         if (thread.name) {
           location.hash = '#' + thread.name;
         }
@@ -667,6 +934,9 @@ var Hoth = (function() {
   app.ChatMessage = ChatMessage;
   app.SystemMessage = SystemMessage;
   app.Message = Message;
+
+  app.environment = environment;
+  app.commands = commands;
 
   return app;
 
