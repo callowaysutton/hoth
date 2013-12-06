@@ -781,6 +781,14 @@ var Hoth = (function() {
     app.activeThread = new Thread;
   };
 
+  commands.threads = function() {
+    app.activeThread.append(new SystemMessage({
+      body: 'Open threads:\n' + app.threads.map(function (thread) {
+        return thread.id
+      }).join('\n')
+    }));
+  };
+
   Object.defineProperty(environment, 'thread', {
     enumerable: true,
     get: function() {
