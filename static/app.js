@@ -456,12 +456,13 @@ var Hoth = (function() {
     this.elInput.style.height = this.elMeasure.offsetHeight + 'px';
 
     this.elInput.addEventListener('input', this.autosize.bind(this));
-
     this.elInput.addEventListener('keydown', this.onKeyDown.bind(this));
   };
 
   Prompt.prototype.onKeyDown = function(e) {
     if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+
+    notify.request();
 
     if (e.keyCode === 13) {
       if (this.elInput.value) {
@@ -920,6 +921,44 @@ var Hoth = (function() {
     }
   });
 
+  var notify;
+  if (typeof webkitNotifications !== 'undefined') {
+    notify = function(data) {
+      if (webkitNotifications.checkPermission() !== 0 || document.hasFocus()) return;
+
+      var notification = webkitNotifications.createNotification('', data.title || document.title, data.body);
+
+      notification.onclick = function() {
+        window.focus();
+        if (data.thread) app.activeThread = data.thread;
+        var i = notify.visible.indexOf(notification);
+        if (i !== -1) {
+          notify.visible.splice(i, 1);
+        }
+        notification.close();
+      };
+
+      notification.show();
+      notify.visible.push(notification);
+    };
+    notify.request = function() {
+      webkitNotifications.requestPermission();
+    };
+  } else {
+    notify = function() {};
+    notify.request = function() {};
+  }
+  notify.visible = [];
+
+  window.addEventListener('focus', function() {
+    if (!notify.visible.length) return;
+
+    for (var i = 0; i < notify.visible.length; i++) {
+      notify.visible[i].close();
+    }
+    notify.visible = [];
+  });
+
   var socket = io.connect(location.protocol + '//' + location.host);
 
   socket.on('system', function(data) {
@@ -933,6 +972,10 @@ var Hoth = (function() {
   socket.on('chat', function(data) {
     User.get(data.author, function(user) {
       Thread.get(data.thread, function(thread) {
+        notify({
+          title: user.name + (thread.id ? ' (' + thread.id + ')' : ''),
+          body: data.body
+        });
         thread.append(new ChatMessage({
           author: user,
           body: data.body
@@ -960,6 +1003,8 @@ var Hoth = (function() {
 
   app.environment = environment;
   app.commands = commands;
+
+  app.notify = notify;
 
   return app;
 
