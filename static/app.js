@@ -719,6 +719,7 @@ var Hoth = (function() {
       body: [].join.call(arguments, ' ')
     }));
   };
+  
 
   commands.help = function() {
     var list = [];
@@ -737,7 +738,17 @@ var Hoth = (function() {
       new Script(command).run();
     }
   };
-
+  commands.list = function() {
+    var list = [];
+    for (i=0;i<threads.length;i++){
+      if (threads[i].$name != undefined){
+        list.push(threads[i].$name);
+      }
+    }
+    app.activeThread.append( new SystemMessage({
+      body: 'Current threads on your client:\n' + list.join('/n')
+      }));
+    };
   // Variables
 
   commands.set = function(name, value) {
