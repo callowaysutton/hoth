@@ -578,6 +578,12 @@ var Hoth = (function() {
   };
 
   Prompt.prototype.sendMessage = function(value) {
+    var x = RE_HASHTAG.exec(value);
+    if (x) {
+      value = value.slice(x[0].length).trim();
+      app.activeThread = x[2] ? Thread.topic(x[2]) : Thread.temp(x[3]);
+      if (!value) return;
+    }
     var message = new ChatMessage({
       author: currentUser,
       body: value
