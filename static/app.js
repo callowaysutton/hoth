@@ -20,7 +20,7 @@ var Hoth = (function() {
   };
 
   var RE_HASHTAG = /^(#([^\s{}\[\]]+?)|!(\w+))([\.!?"',;:\)\]]*(\s|$))/;
-  var RE_INLINE_CODE = /^(\[(`+)(.+?)\2\])|^((`+)(.+?)\5)/;
+  var RE_INLINE_CODE = /^(\[(`+)([^]+?)\2\])|^((`+)([^]+?)\5)/;
   var RE_STRONG = /^__/;
   var RE_EMPHASIS = /^_/;
   var RE_WORD = /^[^\[!`_\s][^_\s]+|^\s+/;
@@ -71,7 +71,10 @@ var Hoth = (function() {
         if (x[2]) {
           result += '<a href="#' + escapeXML(JSON.stringify([{ run: x[3].replace(/^\//, '') }])) + '"><code>' + escapeXML(x[3]) + '</code></a>';
         } else {
+          var multiline = x[6].search(/[\n\r]/) !== -1;
+          if (multiline) result += '<pre>';
           result += '<code>' + escapeXML(x[6]) + '</code>';
+          if (multiline) result += '</pre>';
         }
       } else if (x = RE_STRONG.exec(sub)) {
         toggle(x[0], 'strong');

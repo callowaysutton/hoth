@@ -165,6 +165,12 @@ body {
 .hoth-message-body code {
   font: 11px Menlo, Monaco, Consolas, Courier New, monospace;
 }
+.hoth-message pre {
+  margin: 0;
+  white-space: pre;
+  word-wrap: normal;
+  overflow-x: auto;
+}
 .hoth-message:first-child {
   border-top: 0;
 }
