@@ -138,10 +138,12 @@ db.once('open', function() {
             if (err) return handleError(err, callback);
             User.findByName(data.name, function(err, user) {
               if (err) return handleError(err, callback);
+              currentUser = user;
               callback(null, {
                 user: user.toJSON(),
                 token: tuple.token
               });
+              hasUser();
             });
           });
         });
