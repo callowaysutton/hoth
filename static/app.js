@@ -1265,28 +1265,23 @@ var Hoth = (function() {
   var socket = io.connect('https://' + location.host, { secure: true });
 
   socket.on('system', function(data) {
-    Thread.get(data.thread, function(err, thread) {
-      if (err) return;
-      if (data.body) {
-        thread.append(new SystemMessage({ body: data.body }));
-      }
-    });
+    if (!data.body) return;
+    Thread.get(data.thread).append(new SystemMessage({ body: data.body }));
   }.bind(this));
 
   socket.on('chat', function(data) {
+    if (!data.body) return;
     User.get(data.author, function(err, user) {
       if (err) return;
-      Thread.get(data.thread, function(err, thread) {
-        if (err) return;
-        notify({
-          title: user.name + (thread.id ? ' (' + thread.id + ')' : ''),
-          body: data.body
-        });
-        thread.append(new ChatMessage({
-          author: user,
-          body: data.body
-        }));
+      var thread = Thread.get(data.thread);
+      notify({
+        title: user.name + (thread.id ? ' (' + thread.id + ')' : ''),
+        body: data.body
       });
+      thread.append(new ChatMessage({
+        author: user,
+        body: data.body
+      }));
     });
   });
 
