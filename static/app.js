@@ -204,8 +204,10 @@ var Hoth = (function() {
       if (this.$prompt) {
         this.$prompt.thread = null;
         this.elMessages.removeChild(this.$prompt.element);
+        this.element.classList.remove('active');
       }
       if (this.$prompt = prompt) {
+        this.element.classList.add('active');
         if (prompt.thread) {
           prompt.thread.prompt = null;
         }
