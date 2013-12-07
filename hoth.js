@@ -121,6 +121,7 @@ db.once('open', function() {
           token: null
         });
       }
+      signedIn();
     }
 
     function handleError(err, callback) {
@@ -190,33 +191,37 @@ db.once('open', function() {
       });
     });
 
-    socket.on('user', function(id, callback) {
-      User.findById(id, function(err, user) {
-        if (err) return handleError(err, callback);
-        if (!user) return callback('user not found');
-        callback(null, user.toJSON());
+    function signedIn() {
+
+      socket.on('user', function(id, callback) {
+        User.findById(id, function(err, user) {
+          if (err) return handleError(err, callback);
+          if (!user) return callback('user not found');
+          callback(null, user.toJSON());
+        });
       });
-    });
 
-    socket.on('chat', function(data) {
-      socket.broadcast.emit('chat', data);
-      socket.broadcast.emit('open thread', data.thread);
-    });
+      socket.on('chat', function(data) {
+        socket.broadcast.emit('chat', data);
+        socket.broadcast.emit('open thread', data.thread);
+      });
 
-    socket.on('system', function(data) {
-      socket.broadcast.emit('system', data);
-      socket.broadcast.emit('open thread', data.thread);
-    });
+      socket.on('system', function(data) {
+        socket.broadcast.emit('system', data);
+        socket.broadcast.emit('open thread', data.thread);
+      });
 
-    socket.on('open thread', function(name) {
-      socket.broadcast.emit('open thread', name);
-    });
+      socket.on('open thread', function(name) {
+        socket.broadcast.emit('open thread', name);
+      });
 
-    socket.on('create thread', function(callback) {
-      var uid = nextUID++;
-      socket.broadcast.emit('open thread', '!' + uid);
-      callback(null, uid);
-    });
+      socket.on('create thread', function(callback) {
+        var uid = nextUID++;
+        socket.broadcast.emit('open thread', '!' + uid);
+        callback(null, uid);
+      });
+
+    }
 
   });
 

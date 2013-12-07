@@ -553,11 +553,13 @@ var Hoth = (function() {
     notify.request();
 
     if (e.keyCode === 13) {
-      if (this.elInput.value) {
-        this.send(this.elInput.value);
+      if (currentUser) {
+        if (this.elInput.value) {
+          this.send(this.elInput.value);
+        }
+        this.elInput.value = '';
+        this.autosize();
       }
-      this.elInput.value = '';
-      this.autosize();
       e.preventDefault();
     }
   };
