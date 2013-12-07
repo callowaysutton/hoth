@@ -121,7 +121,7 @@ db.once('open', function() {
           token: null
         });
       }
-      signedIn();
+      hasUser();
     }
 
     function handleError(err, callback) {
@@ -191,7 +191,7 @@ db.once('open', function() {
       });
     });
 
-    function signedIn() {
+    function hasUser() {
 
       socket.on('user', function(id, callback) {
         User.findById(id, function(err, user) {
