@@ -809,10 +809,10 @@ var Hoth = (function() {
   commands.help = function() {
     var list = [];
     for (var key in commands) if (Object.prototype.hasOwnProperty.call(commands, key)) {
-      list.push(key);
+      list.push('```' + key + '```');
     }
     app.activeThread.append(new SystemMessage({
-      body: 'Commands:\n' + list.join('\n')
+      body: '__Commands:__\n' + list.join('\n')
     }));
   };
 
@@ -891,7 +891,7 @@ var Hoth = (function() {
 
   commands.threads = function() {
     app.activeThread.append(new SystemMessage({
-      body: 'Open threads:\n' + app.threads.map(function (thread) {
+      body: '__Open threads:__\n' + app.threads.map(function (thread) {
         return thread.id
       }).join('\n')
     }));
