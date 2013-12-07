@@ -554,7 +554,10 @@ var Hoth = (function() {
 
     notify.request();
 
-    if (e.keyCode === 13) {
+    if (this.elInput.selectionStart === this.elInput.selectionEnd && (e.keyCode === 37 && this.elInput.selectionStart === 0 || e.keyCode === 39 && this.elInput.selectionStart === this.elInput.value.length)) {
+      var i = app.threads.indexOf(app.activeThread);
+      app.activeThread = app.threads[i + (e.keyCode === 37 ? -1 : 1)] || app.threads[e.keyCode === 37 ? 0 : app.threads.length - 1] || app.threads[0];
+    } else if (e.keyCode === 13) {
       if (currentUser) {
         if (this.elInput.value) {
           this.send(this.elInput.value);
