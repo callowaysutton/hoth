@@ -194,11 +194,8 @@ body {
   border-top: 0;
   padding-top: 0;
 }
-.hoth-message.collapsed .hoth-message-author {
-  display: none;
-}
 .hoth-message.collapsed .hoth-message-header {
-  margin-bottom: 0;
+  display: none;
 }
 
 .hoth-message-input {
