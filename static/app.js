@@ -1163,7 +1163,7 @@ var Hoth = (function() {
     notify.visible = [];
   });
 
-  var socket = io.connect(location.protocol + '//' + location.host);
+  var socket = io.connect('https://' + location.host, { secure: true });
 
   socket.on('system', function(data) {
     Thread.get(data.thread, function(err, thread) {

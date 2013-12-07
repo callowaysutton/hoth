@@ -1,0 +1,7 @@
+#!/bin/sh
+
+mkdir -p private
+openssl genrsa -out private/key.pem 1024
+openssl req -new -key private/key.pem -out private/csr.pem
+openssl x509 -req -in private/csr.pem -signkey private/key.pem -out private/cert.pem
+rm private/csr.pem

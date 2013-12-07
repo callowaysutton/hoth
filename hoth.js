@@ -55,10 +55,13 @@ db.once('open', function() {
 
   var UserToken = mongoose.model('UserToken', userTokenSchema);
 
-  var app = require('http').createServer(handler);
-  var io = require('socket.io').listen(app);
-
+  var app = require('https').createServer({
+    key: fs.readFileSync('private/key.pem'),
+    cert: fs.readFileSync('private/cert.pem')
+  }, handler);
   app.listen(8080);
+
+  var io = require('socket.io').listen(app);
 
   var STATIC = {
     '/': 'app.html',
