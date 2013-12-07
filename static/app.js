@@ -139,9 +139,10 @@ var Hoth = (function() {
 
   Thread.get = function(id, callback) {
     if (id[0] === '#') {
-      callback(null, Thread.topic(id.slice(1)));
-    } else if (id[0] === '!') {
-      callback(null, Thread.temp(id.slice(1)));
+      return callback(null, Thread.topic(id.slice(1)));
+    }
+    if (id[0] === '!') {
+      return callback(null, Thread.temp(id.slice(1)));
     }
     callback(new TypeError);
   };
@@ -577,12 +578,6 @@ var Hoth = (function() {
   };
 
   Prompt.prototype.sendMessage = function(value) {
-    var x = RE_HASHTAG.exec(value);
-    if (x) {
-      value = value.slice(x[0].length).trim();
-      app.activeThread = x[2] ? Thread.topic(x[2]) : Thread.temp(x[3]);
-      if (!value) return;
-    }
     var message = new ChatMessage({
       author: currentUser,
       body: value
@@ -863,6 +858,19 @@ var Hoth = (function() {
   };
 
   // Threads
+
+  commands.open = commands.o = function(id) {
+    Thread.get(id, function(err, thread) {
+      if (err) {
+        Thread.get('#' + id, function(err, thread) {
+          if (err) return;
+          app.activeThread = thread;
+        });
+        return;
+      }
+      app.activeThread = thread;
+    });
+  };
 
   commands.close = commands.c = function() {
     app.activeThread.close();
