@@ -168,7 +168,7 @@ body {
 .hoth-message:first-child {
   border-top: 0;
 }
-.hoth-message.chat > .hoth-message-header {
+.hoth-message.chat .hoth-message-header {
   margin-bottom: 8px;
 }
 .hoth-message-author {
@@ -189,6 +189,18 @@ body {
   white-space: pre-wrap;
   word-wrap: break-word;
 }
+
+.hoth-message.collapsed {
+  border-top: 0;
+  padding-top: 0;
+}
+.hoth-message.collapsed .hoth-message-author {
+  display: none;
+}
+.hoth-message.collapsed .hoth-message-header {
+  margin-bottom: 0;
+}
+
 .hoth-message-input {
   margin: 0;
   padding: 0;

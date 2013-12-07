@@ -213,6 +213,10 @@ var Hoth = (function() {
   Thread.prototype.append = function(message) {
     message.delete();
 
+    if (this.lastMessage && this.lastMessage.author === message.author) {
+      message.collapsed = true;
+    }
+
     this.messages.push(message);
     if (this.prompt) {
       this.elMessages.insertBefore(message.element, this.prompt.element);
@@ -410,6 +414,20 @@ var Hoth = (function() {
     },
     get: function() {
       return this.$html;
+    }
+  });
+
+  Object.defineProperty(Message.prototype, 'collapsed', {
+    set: function(collapsed) {
+      this.$collapsed = collapsed;
+      if (collapsed) {
+        this.element.classList.add('collapsed');
+      } else {
+        this.element.classList.remove('collapsed');
+      }
+    },
+    get: function() {
+      return this.$collapsed;
     }
   });
 
