@@ -120,16 +120,15 @@ var Hoth = (function() {
 
     this.template();
 
-    this.name = data.name && data.name.toLowerCase();
-    this.uid = data.uid;
+    this.id = data.id;
 
     if (this.id) {
       socket.emit('open thread', this.id);
     } else {
       socket.emit('create thread', function(err, uid) {
         if (err) return;
-        this.uid = uid;
-        Thread.temps[uid] = this;
+        this.id = '!' + uid;
+        Thread.map[this.id] = this;
         if (app.activeThread === this) {
           location.hash = this.permalink;
         }
@@ -137,33 +136,16 @@ var Hoth = (function() {
     }
   };
 
-  Thread.topics = {};
-  Thread.temps = {};
+  Thread.map = {};
 
-  Thread.get = function(id, callback) {
-    if (id[0] === '#') {
-      return callback(null, Thread.topic(id.slice(1)));
-    }
-    if (id[0] === '!') {
-      return callback(null, Thread.temp(id.slice(1)));
-    }
-    callback(new TypeError);
-  };
+  Thread.get = function(id) {
+    id = id.toLowerCase();
 
-  Thread.temp = function(uid) {
-    if (Thread.temps[uid]) {
-      return Thread.temps[uid];
+    if (Thread.map[id]) {
+      return Thread.map[id];
     }
-    return Thread.temps[uid] = new Thread({ uid: uid });
-  };
-
-  Thread.topic = function(name) {
-    name = name.toLowerCase();
-    if (Thread.topics[name]) {
-      return Thread.topics[name];
-    }
-    return Thread.topics[name] = new Thread({
-      name: name
+    return Thread.map[id] = new Thread({
+      id: id
     });
   };
 
@@ -182,20 +164,24 @@ var Hoth = (function() {
     this.element.addEventListener('mousewheel', this.onMouseWheel.bind(this));
   };
 
-  Object.defineProperty(Thread.prototype, 'name', {
-    set: function(name) {
-      this.$name = name;
-      if (name) {
-        this.elName.textContent = name;
-        this.elName.style.display = 'block';
-        this.element.classList.add('named');
+  Object.defineProperty(Thread.prototype, 'id', {
+    set: function(id) {
+      this.$id = id;
+      this.elName.textContent = id ? id.slice(1) : '';
+      if (id && id[0] === '#') {
+        this.element.classList.add('topic');
       } else {
-        this.elName.style.display = 'none';
-        this.element.classList.remove('named');
+        this.element.classList.remove('topic');
       }
     },
     get: function() {
-      return this.$name;
+      return this.$id;
+    }
+  });
+
+  Object.defineProperty(Thread.prototype, 'permalink', {
+    get: function() {
+      return this.id && (this.id[0] === '#' ? this.id : '#' + JSON.stringify([{ goto: this.id }]));
     }
   });
 
@@ -278,18 +264,6 @@ var Hoth = (function() {
     this.append(message);
     socket.emit(message.isChat ? 'chat' : 'system', message.data());
   };
-
-  Object.defineProperty(Thread.prototype, 'id', {
-    get: function() {
-      return this.name ? '#' + this.name : this.uid ? '!' + this.uid : null;
-    }
-  });
-
-  Object.defineProperty(Thread.prototype, 'permalink', {
-    get: function() {
-      return this.name ? '#' + this.name : this.uid ? '#' + JSON.stringify([{ goto: '!' + this.uid }]) : null;
-    }
-  });
 
   Thread.prototype.onMouseWheel = function(e) {
     this.shouldAutoscroll = false;
@@ -550,14 +524,22 @@ var Hoth = (function() {
   };
 
   Prompt.prototype.onKeyDown = function(e) {
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+      var i = app.threads.indexOf(app.activeThread);
+      if (e.keyCode === 221) {
+        app.activeThread = app.threads[i + 1] || app.threads[app.threads.length - 1];
+        e.preventDefault();
+      } else if (e.keyCode === 219) {
+        app.activeThread = app.threads[i - 1] || app.threads[0];
+        e.preventDefault();
+      }
+      return;
+    }
     if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
 
     notify.request();
 
-    if (this.elInput.selectionStart === this.elInput.selectionEnd && (e.keyCode === 37 && this.elInput.selectionStart === 0 || e.keyCode === 39 && this.elInput.selectionStart === this.elInput.value.length)) {
-      var i = app.threads.indexOf(app.activeThread);
-      app.activeThread = app.threads[i + (e.keyCode === 37 ? -1 : 1)] || app.threads[e.keyCode === 37 ? 0 : app.threads.length - 1] || app.threads[0];
-    } else if (e.keyCode === 13) {
+    if (e.keyCode === 13) {
       if (currentUser) {
         if (this.elInput.value) {
           this.send(this.elInput.value);
@@ -594,7 +576,7 @@ var Hoth = (function() {
     var x = RE_HASHTAG.exec(value);
     if (x) {
       value = value.slice(x[0].length).trim();
-      app.activeThread = x[2] ? Thread.topic(x[2]) : Thread.temp(x[3]);
+      app.activeThread = Thread.get(x[1]);
       if (!value) return;
     }
     var message = new ChatMessage({
@@ -970,7 +952,7 @@ var Hoth = (function() {
     this.elRegisterGoButton.textContent = 'Go';
     this.hideSignIn();
 
-    this.lobby = Thread.topic('lobby');
+    this.lobby = Thread.get('#lobby');
     this.append(this.lobby);
 
     this.prompt = new Prompt;
@@ -1219,15 +1201,12 @@ var Hoth = (function() {
       }
       return;
     }
-    this.activeThread = Thread.topic(hash.slice(1));
+    this.activeThread = Thread.get(hash);
   };
 
   app.runHash = function(json) {
     if (json.goto) {
-      Thread.get(json.goto, function(err, thread) {
-        if (err) return;
-        app.activeThread = thread;
-      });
+      app.activeThread = Thread.get(json.goto);
     } else if (json.run) {
       try {
         new Script(json.run).run();
