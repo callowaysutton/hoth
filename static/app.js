@@ -21,8 +21,8 @@ var Hoth = (function() {
 
   var RE_HASHTAG = /^(#([^\s{}\[\]]+?)|!(\w+))([\.!?"',;:\)\]]*(\s|$))/;
   var RE_INLINE_CODE = /^(\[(`+)(.+?)\2\])|^((`+)(.+?)\5)/;
-  var RE_STRONG = /^__|\*\*/;
-  var RE_EMPHASIS = /^_|\*/;
+  var RE_STRONG = /^__|^\*\*/;
+  var RE_EMPHASIS = /^_|^\*/;
   var RE_WORD = /^[^\[!`_*\s][^_*\s]+|^\s+/;
 
   var parse = function(string) {
