@@ -21,9 +21,9 @@ var Hoth = (function() {
 
   var RE_HASHTAG = /^(#([^\s{}\[\]]+?)|!(\w+))([\.!?"',;:\)\]]*(\s|$))/;
   var RE_INLINE_CODE = /^(\[(`+)(.+?)\2\])|^((`+)(.+?)\5)/;
-  var RE_STRONG = /^__|^\*\*/;
-  var RE_EMPHASIS = /^_|^\*/;
-  var RE_WORD = /^[^\[!`_*\s][^_*\s]+|^\s+/;
+  var RE_STRONG = /^__/;
+  var RE_EMPHASIS = /^_/;
+  var RE_WORD = /^[^\[!`_\s][^_\s]+|^\s+/;
 
   var parse = function(string) {
     string = string.trim();
@@ -94,12 +94,10 @@ var Hoth = (function() {
       }
     }
 
-    console.log(tags, result);
     while (tags.length) {
       var tag = tags.pop();
       result = result.slice(0, tag.index) + tag.source + result.slice(tag.index + tag.length);
     }
-    console.log(tags, result);
 
     return result;
   };
