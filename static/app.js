@@ -67,7 +67,6 @@ var Hoth = (function() {
       } else if (x = RE_EMPHASIS.exec(sub)) {
         toggle('em');
       } else if (x = RE_WORD.exec(sub)) {
-        console.log('left', x[0]);
         result += escapeXML(x[0]);
       } else {
         var j = string.slice(i + 1).search(/[#!\[`_*]/);
