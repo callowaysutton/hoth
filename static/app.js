@@ -27,22 +27,33 @@ var Hoth = (function() {
 
   var parse = function(string) {
     string = string.trim();
+
     var result = '';
     var i = 0;
     var tags = [];
-    var toggle = function(tag) {
-      var i = tags.indexOf(tag);
-      if (i !== -1) {
-        for (var j = tags.length - 1; j >= i; j--) {
-          result += '</' + tags[j] + '>';
+
+    var toggle = function(source, tag) {
+      var index = tags.length - 1;
+      while (index >= 0) {
+        if (tags[index].tag === tag) break;
+        index -= 1;
+      }
+      if (index !== -1) {
+        for (var j = tags.length - 1; j >= index; j--) {
+          result += '</' + tags[j].tag + '>';
         }
-        tags.splice(i, 1);
-        for (j = i; j < tags.length; j++) {
-          result += '<' + tags[j] + '>';
+        tags.splice(index, 1);
+        for (j = index; j < tags.length; j++) {
+          result += '<' + tags[j].tag + '>';
         }
       } else {
+        tags.push({
+          tag: tag,
+          source: source,
+          index: result.length,
+          length: ('<' + tag + '>').length
+        });
         result += '<' + tag + '>';
-        tags.push(tag);
       }
     };
 
@@ -63,9 +74,9 @@ var Hoth = (function() {
           result += '<code>' + escapeXML(x[6]) + '</code>';
         }
       } else if (x = RE_STRONG.exec(sub)) {
-        toggle('strong');
+        toggle(x[0], 'strong');
       } else if (x = RE_EMPHASIS.exec(sub)) {
-        toggle('em');
+        toggle(x[0], 'em');
       } else if (x = RE_WORD.exec(sub)) {
         result += escapeXML(x[0]);
       } else {
@@ -83,9 +94,12 @@ var Hoth = (function() {
       }
     }
 
+    console.log(tags, result);
     while (tags.length) {
-      result += '</' + tags.pop() + '>';
+      var tag = tags.pop();
+      result = result.slice(0, tag.index) + tag.source + result.slice(tag.index + tag.length);
     }
+    console.log(tags, result);
 
     return result;
   };
