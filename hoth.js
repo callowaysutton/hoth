@@ -99,7 +99,7 @@ db.once('open', function() {
   }
 
   var users = {};
-  var nextUID = 0;
+  var nextUID = 1;
 
   io.sockets.on('connection', function(socket) {
 
