@@ -186,7 +186,7 @@ db.once('open', function() {
     socket.on('init', function() {
       socket.emit('system', {
         thread: '#lobby',
-        body: 'Welcome to the #lobby! Type `/index` for an index of important topics and `/help` for a list of commands.'
+        body: 'Welcome to the #lobby! Type [`/index`] for an index of important topics and [`/help`] for a list of commands.'
       });
     });
 

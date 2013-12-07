@@ -19,24 +19,58 @@ var Hoth = (function() {
     return string.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/, '&apos;');
   };
 
-  var RE_HASHTAG = /^(#([^\s{}]+?)|!(\w+))([\.!?"',;:\)\]]*(\s|$))/;
+  var RE_HASHTAG = /^(#([^\s{}\[\]]+?)|!(\w+))([\.!?"',;:\)\]]*(\s|$))/;
+  var RE_INLINE_CODE = /^(\[(`+)(.+?)\2\])|^((`+)(.+?)\5)/;
+  var RE_STRONG = /^__|\*\*/;
+  var RE_EMPHASIS = /^_|\*/;
+  var RE_WORD = /^[^\[!`_*\s][^_*\s]+|^\s+/;
 
   var parse = function(string) {
     string = string.trim();
     var result = '';
     var i = 0;
+    var tags = [];
+    var toggle = function(tag) {
+      var i = tags.indexOf(tag);
+      if (i !== -1) {
+        for (var j = tags.length - 1; j >= i; j--) {
+          result += '</' + tags[j] + '>';
+        }
+        tags.splice(i, 1);
+        for (j = i; j < tags.length; j++) {
+          result += '<' + tags[j] + '>';
+        }
+      } else {
+        result += '<' + tag + '>';
+        tags.push(tag);
+      }
+    };
+
     while (i < string.length) {
-      var x;
-      if (x = RE_HASHTAG.exec(string.slice(i))) {
+      var x = null;
+      var sub = string.slice(i);
+      if (x = RE_HASHTAG.exec(sub)) {
         if (x[2]) {
           result += '<a href="#' + escapeXML(x[2]) + '">#' + escapeXML(x[2]) + '</a>';
         } else {
-          result += '<a href="#' + escapeXML(JSON.stringify({ goto: '!' + x[3] })) + '">(thread)</a>';
+          result += '<a href="#' + escapeXML(JSON.stringify([{ goto: '!' + x[3] }])) + '">(thread)</a>';
         }
         result += escapeXML(x[4]);
-        i += x[0].length;
+      } else if (x = RE_INLINE_CODE.exec(sub)) {
+        if (x[2]) {
+          result += '<a href="#' + escapeXML(JSON.stringify([{ run: x[3].replace(/^\//, '') }])) + '"><code>' + escapeXML(x[3]) + '</code></a>';
+        } else {
+          result += '<code>' + escapeXML(x[6]) + '</code>';
+        }
+      } else if (x = RE_STRONG.exec(sub)) {
+        toggle('strong');
+      } else if (x = RE_EMPHASIS.exec(sub)) {
+        toggle('em');
+      } else if (x = RE_WORD.exec(sub)) {
+        console.log('left', x[0]);
+        result += escapeXML(x[0]);
       } else {
-        var j = string.slice(i + 1).search(/[#!]/);
+        var j = string.slice(i + 1).search(/[#!\[`_*]/);
         if (j === -1) {
           j = string.length;
         } else {
@@ -45,7 +79,15 @@ var Hoth = (function() {
         result += escapeXML(string.slice(i, j));
         i = j;
       }
+      if (x) {
+        i += x[0].length;
+      }
     }
+
+    while (tags.length) {
+      result += '</' + tags.pop() + '>';
+    }
+
     return result;
   };
 
@@ -224,7 +266,7 @@ var Hoth = (function() {
 
   Object.defineProperty(Thread.prototype, 'permalink', {
     get: function() {
-      return this.name ? '#' + this.name : this.uid ? '#' + JSON.stringify({ goto: '!' + this.uid }) : null;
+      return this.name ? '#' + this.name : this.uid ? '#' + JSON.stringify([{ goto: '!' + this.uid }]) : null;
     }
   });
 
@@ -786,7 +828,9 @@ var Hoth = (function() {
   commands.signout = function() {
     localStorage.removeItem('hoth.name');
     localStorage.removeItem('hoth.token');
-    location.reload();
+    setTimeout(function() {
+      location.reload();
+    });
   };
 
   // Threads
@@ -892,7 +936,7 @@ var Hoth = (function() {
         }
         app.signIn(data);
         app.lobby.append(new SystemMessage({
-          body: 'You were automatically signed in. Type `/signout` to sign out.'
+          body: 'You were automatically signed in. Type [`/signout`] to sign out.'
         }));
       });
     } else {
@@ -1101,10 +1145,22 @@ var Hoth = (function() {
   app.onHashChange = function() {
     var hash = location.hash;
     if (hash.length <= 1) return;
-    if (hash[1] === '{') {
+    if (hash[1] === '{' || hash[1] === '[') {
       try {
-        this.runHash(JSON.parse(hash.slice(1)));
+        var json = JSON.parse(hash.slice(1));
       } catch (e) {}
+      if (json) {
+        if (Object.prototype.toString.call(json) === '[object Array]') {
+          for (var i = 0; i < json.length; i++) {
+            this.runHash(json[i]);
+          }
+        } else {
+          this.runHash(json);
+        }
+      }
+      if (this.activeThread) {
+        location.replace((location + '').split('#')[0] + this.activeThread.permalink);
+      }
       return;
     }
     this.activeThread = Thread.topic(hash.slice(1));
@@ -1116,6 +1172,14 @@ var Hoth = (function() {
         if (err) return;
         app.activeThread = thread;
       });
+    } else if (json.run) {
+      try {
+        new Script(json.run).run();
+      } catch (e) {
+        (app.activeThread || this.lobby).append(new ErrorMessage({
+          body: e.stack || e.toString()
+        }));
+      }
     }
   };
 

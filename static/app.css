@@ -161,7 +161,8 @@ body {
   background-color: #fff5f5;
   color: #a00;
 }
-.hoth-message.error .hoth-message-body {
+.hoth-message.error .hoth-message-body,
+.hoth-message-body code {
   font: 11px Menlo, Monaco, Consolas, Courier New, monospace;
 }
 .hoth-message:first-child {
