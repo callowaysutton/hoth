@@ -781,6 +781,14 @@ var Hoth = (function() {
     return Number(x) / Number(y);
   };
 
+  // Sessions
+
+  commands.signout = function() {
+    localStorage.removeItem('hoth.name');
+    localStorage.removeItem('hoth.token');
+    location.reload();
+  };
+
   // Threads
 
   commands.close = commands.c = function() {
@@ -845,6 +853,13 @@ var Hoth = (function() {
     this.elSignInForm.appendChild(this.elConfirmPassword = el('hoth-sign-in-input register-only', 'input'));
     this.elConfirmPassword.type = 'password';
     this.elConfirmPassword.placeholder = 'Confirm Password';
+
+    this.elSignInForm.appendChild(this.elRememberWrap = el('hoth-sign-in-remember', 'label'));
+    this.elRememberWrap.appendChild(this.elRemember = el('hoth-sign-in-checkbox', 'input'));
+    this.elRemember.type = 'checkbox';
+    this.elRemember.checked = true;
+    this.elRememberWrap.appendChild(document.createTextNode('Remember me'));
+
     this.elSignInForm.appendChild(this.elSignInButton = el('hoth-sign-in-button sign-in-only', 'button'));
     this.elSignInButton.textContent = 'Sign In';
     this.elSignInForm.appendChild(this.elRegisterButton = el('hoth-sign-in-button sign-in-only', 'button'));
@@ -853,6 +868,7 @@ var Hoth = (function() {
     this.elRegisterBackButton.textContent = 'Back';
     this.elSignInForm.appendChild(this.elRegisterGoButton = el('hoth-sign-in-button register-only', 'button'));
     this.elRegisterGoButton.textContent = 'Go';
+    this.hideSignIn();
 
     this.lobby = Thread.topic('lobby');
     this.append(this.lobby);
@@ -861,6 +877,26 @@ var Hoth = (function() {
     this.onHashChange();
     if (!this.activeThread) {
       this.activeThread = this.lobby;
+    }
+
+    var name = localStorage.getItem('hoth.name');
+    var token = localStorage.getItem('hoth.token');
+    if (name && token) {
+      socket.emit('sign in', {
+        name: name,
+        token: token
+      }, function(err, data) {
+        if (err) {
+          app.showSignIn();
+          return;
+        }
+        app.signIn(data);
+        app.lobby.append(new SystemMessage({
+          body: 'You were automatically signed in. Type `/signout` to sign out.'
+        }));
+      });
+    } else {
+      this.showSignIn();
     }
 
     document.body.addEventListener('keydown', this.onKeyDown.bind(this));
@@ -879,7 +915,7 @@ var Hoth = (function() {
   app.showSignIn = function() {
     this.elLightbox.style.display = 'block';
     this.elSignInForm.style.display = 'block';
-    this.elUsername.value = localStorage.getItem('hoth.username');
+    this.elUsername.value = localStorage.getItem('hoth.name');
     this.focusSignIn();
   };
 
@@ -919,15 +955,16 @@ var Hoth = (function() {
     this.elSignInButton.disabled = true;
     socket.emit('sign in', {
       name: this.elUsername.value,
-      password: this.elPassword.value
-    }, function(err, userData) {
+      password: this.elPassword.value,
+      remember: this.elRemember.checked
+    }, function(err, data) {
       app.elSignInButton.disabled = false;
       if (err) {
         app.elUsername.classList.add('error');
         app.elPassword.classList.add('error');
         return;
       }
-      app.signIn(new User(userData));
+      app.signIn(data);
     });
   };
 
@@ -959,8 +996,9 @@ var Hoth = (function() {
     this.elRegisterGoButton.disabled = true;
     socket.emit('create account', {
       name: this.elUsername.value,
-      password: this.elPassword.value
-    }, function(err, userData) {
+      password: this.elPassword.value,
+      remember: this.elRemember.checked
+    }, function(err, data) {
       app.elRegisterGoButton.disabled = false;
       if (err === 'user already exists' || err === 'bad username') {
         app.elUsername.classList.add('error');
@@ -969,7 +1007,7 @@ var Hoth = (function() {
         app.elPassword.classList.add('error');
         return;
       }
-      app.signIn(new User(userData));
+      app.signIn(data);
     });
   };
 
@@ -979,8 +1017,14 @@ var Hoth = (function() {
     this.elConfirmPassword.classList.remove('error');
   };
 
-  app.signIn = function(user) {
-    currentUser = user;
+  app.signIn = function(data) {
+    currentUser = new User(data.user);
+    localStorage.setItem('hoth.name', currentUser.name);
+    if (data.token) {
+      localStorage.setItem('hoth.token', data.token);
+    } else {
+      localStorage.removeItem('hoth.token');
+    }
     this.hideSignIn();
     socket.emit('init');
   };
@@ -1155,7 +1199,6 @@ var Hoth = (function() {
   });
 
   app.init();
-  app.showSignIn();
 
   app.User = User;
   app.Thread = Thread;

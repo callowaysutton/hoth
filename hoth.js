@@ -25,7 +25,35 @@ db.once('open', function() {
     };
   };
 
+  var userTokenSchema = mongoose.Schema({
+    name: String,
+    token: String
+  });
+
+  var TOKEN_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  function genToken() {
+    var s = '';
+    for (var i = 0; i < 32; i++) {
+      s += TOKEN_CHARS[Math.random() * TOKEN_CHARS.length | 0];
+    }
+    return s;
+  }
+
+  userTokenSchema.statics.create = function(name, cb) {
+    new UserToken({
+      name: name,
+      token: genToken()
+    }).save(cb);
+  };
+
+  userTokenSchema.methods.refresh = function(cb) {
+    this.token = genToken();
+    this.save(cb);
+  };
+
   var User = mongoose.model('User', userSchema);
+
+  var UserToken = mongoose.model('UserToken', userTokenSchema);
 
   var app = require('http').createServer(handler);
   var io = require('socket.io').listen(app);
@@ -74,19 +102,58 @@ db.once('open', function() {
 
     var currentUser = null;
 
-    socket.on('sign in', function(data, callback) {
-      User.findByName(data.name, function(err, user) {
-        if (err || !user) return callback('authentication failed');
-        bcrypt.compare(data.password, user.hash, function(err, res) {
-          if (err) return callback('internal error');
-          if (res) {
-            currentUser = user;
-            callback(null, user.toJSON());
-          } else {
-            callback('authentication failed');
-          }
+    function signIn(remember, user, callback) {
+      currentUser = user;
+      if (remember) {
+        UserToken.create(user.name, function(err, tuple) {
+          if (err) return handleError(err, callback);
+          callback(null, {
+            user: user.toJSON(),
+            token: tuple.token
+          });
         });
-      });
+      } else {
+        callback(null, {
+          user: user.toJSON(),
+          token: null
+        });
+      }
+    }
+
+    function handleError(err, callback) {
+      console.log(err);
+      callback('internal error');
+    }
+
+    socket.on('sign in', function(data, callback) {
+      if (data.token) {
+        UserToken.findOne({ name: data.name, token: data.token }, function(err, tuple) {
+          if (err) return handleError(err, callback);
+          if (!tuple) return callback('invalid token');
+          tuple.refresh(function(err, tuple) {
+            if (err) return handleError(err, callback);
+            User.findByName(data.name, function(err, user) {
+              if (err) return handleError(err, callback);
+              callback(null, {
+                user: user.toJSON(),
+                token: tuple.token
+              });
+            });
+          });
+        });
+      } else {
+        User.findByName(data.name, function(err, user) {
+          if (err || !user) return callback('authentication failed');
+          bcrypt.compare(data.password, user.hash, function(err, res) {
+            if (err) return handleError(err, callback);
+            if (res) {
+              signIn(data.remember, user, callback);
+            } else {
+              callback('authentication failed');
+            }
+          });
+        });
+      }
     });
 
     socket.on('create account', function(data, callback) {
@@ -98,16 +165,15 @@ db.once('open', function() {
       User.findByName(data.name, function(err, user) {
         if (user) return callback('user already exists');
         bcrypt.genSalt(10, function(err, salt) {
-          if (err) return callback('internal error');
+          if (err) return handleError(err, callback);
           bcrypt.hash(data.password, salt, function(err, hash) {
-            if (err) return callback('internal error');
+            if (err) return handleError(err, callback);
             new User({
               name: data.name,
               hash: hash
             }).save(function(err, user) {
-              if (err) return callback('internal error');
-              currentUser = user;
-              callback(null, user.toJSON());
+              if (err) return handleError(err, callback);
+              signIn(data.remember, user, callback);
             });
           });
         });
@@ -123,7 +189,7 @@ db.once('open', function() {
 
     socket.on('user', function(id, callback) {
       User.findById(id, function(err, user) {
-        if (err) return callback('internal error');
+        if (err) return handleError(err, callback);
         if (!user) return callback('user not found');
         callback(null, user.toJSON());
       });
