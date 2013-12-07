@@ -226,7 +226,7 @@ var Hoth = (function() {
   Thread.prototype.append = function(message) {
     message.delete();
 
-    if (this.lastMessage && this.lastMessage.author === message.author) {
+    if (this.lastMessage && this.lastMessage.author === message.author && this.lastMessage.constructor === message.constructor) {
       message.collapsed = true;
     }
 
@@ -479,6 +479,7 @@ var Hoth = (function() {
     if (data.author) this.author = data.author;
   };
   ChatMessage.prototype = Object.create(Message.prototype);
+  ChatMessage.prototype.constructor = ChatMessage;
 
   Object.defineProperty(ChatMessage.prototype, 'author', {
     set: function(author) {
@@ -508,6 +509,7 @@ var Hoth = (function() {
     Message.call(this, data);
   };
   SystemMessage.prototype = Object.create(Message.prototype);
+  SystemMessage.prototype.constructor = SystemMessage;
 
   SystemMessage.prototype.template = function() {
     Message.prototype.template.call(this);
@@ -519,6 +521,7 @@ var Hoth = (function() {
     Message.call(this, data);
   };
   ErrorMessage.prototype = Object.create(Message.prototype);
+  ErrorMessage.prototype.constructor = ErrorMessage;
 
   ErrorMessage.prototype.template = function() {
     Message.prototype.template.call(this);
