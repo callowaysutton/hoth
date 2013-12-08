@@ -141,12 +141,9 @@ var Hoth = (function() {
   Thread.get = function(id) {
     id = id.toLowerCase();
 
-    if (Thread.map[id]) {
-      return Thread.map[id];
-    }
-    return Thread.map[id] = new Thread({
-      id: id
-    });
+    var thread = Thread.map[id] || (Thread.map[id] = new Thread({ id: id }));
+    app.append(thread);
+    return thread;
   };
 
   Thread.prototype.template = function() {
