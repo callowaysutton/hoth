@@ -19,7 +19,7 @@ if (process.argv[2]) {
 
 var mongoose = require('mongoose');
 var ObjectId = mongoose.Schema.Types.ObjectId;
-mongoose.connect('mongodb://localhost:'+config.mongoPort+'/hoth');
+mongoose.connect('mongodb://localhost:'+CONFIG.mongoPort+'/hoth');
 
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
