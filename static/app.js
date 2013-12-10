@@ -110,6 +110,7 @@ var Hoth = (function() {
 
     this.messages = [];
     this.shouldAutoscroll = true;
+    this.loaded = false;
     this.contentSize = 0;
     this.dragging = false;
     this.$scroll = 0;
@@ -124,7 +125,9 @@ var Hoth = (function() {
 
     if (this.id) {
       socket.emit('open thread', this.id);
+      this.initLoad();
     } else {
+      this.loaded = true;
       socket.emit('create thread', function(err, uid) {
         if (err) return;
         this.id = '!' + uid;
@@ -157,6 +160,7 @@ var Hoth = (function() {
     this.elWrap.appendChild(this.elMessages = el('hoth-thread-messages'));
 
     this.elScrollbar.addEventListener('mousedown', this.onScrollMouseDown.bind(this));
+    this.elContent.addEventListener('scroll', this.onScroll.bind(this));
     this.element.addEventListener('click', this.onClick.bind(this));
     this.element.addEventListener('mousewheel', this.onMouseWheel.bind(this));
   };
@@ -205,6 +209,12 @@ var Hoth = (function() {
     }
   });
 
+  Object.defineProperty(Thread.prototype, 'firstMessage', {
+    get: function() {
+      return this.messages[0];
+    }
+  });
+
   Object.defineProperty(Thread.prototype, 'lastMessage', {
     get: function() {
       return this.messages[this.messages.length - 1];
@@ -212,20 +222,25 @@ var Hoth = (function() {
   });
 
   Thread.prototype.append = function(message) {
-    message.delete();
+    var messages = [].concat.apply([], [].slice.call(arguments));
+    for (var i = 0; i < messages.length; i++) {
+      message = messages[i];
+      message.delete();
 
-    if (this.lastMessage && this.lastMessage.author === message.author && this.lastMessage.constructor === message.constructor) {
-      message.collapsed = true;
+      if (this.lastMessage && this.lastMessage.authorId === message.authorId && this.lastMessage.constructor === message.constructor) {
+        message.collapsed = true;
+      }
+
+      this.messages.push(message);
+      if (this.prompt) {
+        this.elMessages.insertBefore(message.element, this.prompt.element);
+      } else {
+        this.elMessages.appendChild(message.element);
+      }
+      message.thread = this;
     }
 
-    this.messages.push(message);
-    if (this.prompt) {
-      this.elMessages.insertBefore(message.element, this.prompt.element);
-    } else {
-      this.elMessages.appendChild(message.element);
-    }
-    message.thread = this;
-
+    this.messageCount += messages.length;
     this.contentChanged();
   };
 
@@ -262,6 +277,81 @@ var Hoth = (function() {
     socket.emit(message.isChat ? 'chat' : 'system', message.data());
   };
 
+  Thread.CHUNK_SIZE = 50;
+  Thread.LOAD_POLL_TIME = 200;
+  Thread.LOAD_THRESHOLD = 1000;
+
+  Thread.prototype.initLoad = function() {
+    if (this.loading || this.messageCount) {
+      return;
+    }
+    this.loading = true;
+    socket.emit('thread length', {
+      thread: this.id
+    }, function(err, count) {
+      if (err) return;
+      this.loading = false;
+      this.messageCount = count;
+      this.load();
+    }.bind(this));
+  };
+
+  Thread.prototype.load = function() {
+    if (this.loaded) return;
+    if (this.loading) {
+      clearTimeout(this.loadTimeout);
+      this.loadTimeout = setTimeout(this.load.bind(this), Thread.LOAD_POLL_TIME);
+      return;
+    }
+
+    var length = Thread.CHUNK_SIZE;
+    var offset = this.messageCount - this.messages.length - length;
+    if (offset < 0) {
+      length += offset;
+      offset = 0;
+    }
+
+    this.loading = true;
+    socket.emit('thread history', {
+      thread: this.id,
+      offset: offset,
+      length: length
+    }, function(err, data) {
+      if (err) return;
+
+      this.insert(0, data.map(Message.fromJSON));
+      this.messageCount -= data.length;
+
+      if (offset === 0) {
+        this.loaded = true;
+      }
+      this.loading = false;
+    }.bind(this));
+  };
+
+  Thread.prototype.insert = function(index, message) {
+    var oldSize = this.contentSize;
+
+    var messages = [].concat.apply([], [].slice.call(arguments, 1));
+    for (var i = messages.length; i--;) {
+      message = messages[i];
+      message.delete();
+
+      var after = this.messages[index];
+      if (after && after.authorId === message.authorId && after.constructor === message.constructor) {
+        after.collapsed = true;
+      }
+
+      this.messages.splice(index, 0, message);
+      this.elMessages.insertBefore(message.element, after ? after.element : this.prompt ? this.prompt.element : null);
+      message.thread = this;
+    }
+
+    this.messageCount += messages.length;
+    this.contentSize = this.elWrap.offsetHeight;
+    this.scroll += this.contentSize - oldSize;
+  };
+
   Thread.prototype.onMouseWheel = function(e) {
     this.shouldAutoscroll = false;
     this.scroll -= e.wheelDeltaY;
@@ -269,12 +359,18 @@ var Hoth = (function() {
   };
 
   Thread.prototype.onClick = function() {
-    if (document.getSelection().isCollapsed) {
-      app.activeThread = this;
+    app.activeThread = this;
+    if (document.getSelection().isCollapsed && this.shouldAutoscroll) {
       if (this.prompt) {
         this.prompt.focus();
       }
     }
+  };
+
+  Thread.prototype.onScroll = function(e) {
+    var scroll = this.elContent.scrollTop;
+    this.elContent.scrollTop = 0;
+    this.scroll += scroll;
   };
 
   Thread.prototype.onScrollMouseMove = function(e) {
@@ -348,6 +444,12 @@ var Hoth = (function() {
     var max = Math.max(this.contentSize, this.viewportSize);
     if (!property) {
       this.shouldAutoscroll = max - this.viewportSize - this.scroll <= Thread.AUTOSCROLL_THRESHOLD;
+      if (this.shouldAutoscroll && this.prompt) {
+        this.prompt.focus();
+      }
+    }
+    if (this.scroll < Thread.LOAD_THRESHOLD && !this.loaded) {
+      this.load();
     }
     var x = (max - this.scroll) / this.viewportSize;
     var y = (max - (this.scroll + this.viewportSize)) / this.viewportSize;
@@ -374,6 +476,23 @@ var Hoth = (function() {
     } else {
       this.body = data.body || '';
     }
+  };
+
+  Message.fromJSON = function(data) {
+    if (data.type === 'system') {
+      return new SystemMessage({
+        body: data.body,
+        time: new Date(data.sent)
+      });
+    }
+    if (data.type === 'chat') {
+      return new ChatMessage({
+        author: data.author,
+        body: data.body,
+        time: new Date(data.sent)
+      });
+    }
+    throw new Error('Invalid message type');
   };
 
   Object.defineProperty(Message.prototype, 'time', {
@@ -445,6 +564,9 @@ var Hoth = (function() {
     if (i !== -1) {
       this.thread.messages.splice(i, 1);
     }
+
+    this.thread.messageCount -= 1;
+    this.thread = null;
   };
 
   var ChatMessage = function(data) {
@@ -460,10 +582,24 @@ var Hoth = (function() {
   Object.defineProperty(ChatMessage.prototype, 'author', {
     set: function(author) {
       this.$author = author;
-      this.elAuthor.textContent = author.name;
+      if (typeof author === 'string') {
+        this.elAuthor.textContent = '';
+        User.get(author, function(err, user) {
+          if (err) return;
+          this.author = user;
+        }.bind(this));
+      } else {
+        this.elAuthor.textContent = author.name;
+      }
     },
     get: function() {
       return this.$author;
+    }
+  });
+
+  Object.defineProperty(ChatMessage.prototype, 'authorId', {
+    get: function() {
+      return this.author.id || this.author;
     }
   });
 

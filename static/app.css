@@ -182,6 +182,9 @@ body {
   border-top: 0;
 }
 .hoth-message.chat .hoth-message-header {
+  height: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-bottom: 8px;
 }
 .hoth-message-author {
