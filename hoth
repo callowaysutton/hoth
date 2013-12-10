@@ -230,7 +230,7 @@ db.once('open', function() {
 
       if (!data.name) return cb('bad username');
       if (data.password.length < CONFIG.minPasswordLength) {
-        return cb('password too short');
+        return cb({ type: 'passwordTooShort', min: CONFIG.minPasswordLength });
       }
 
       User.findByName(data.name, function(err, user) {

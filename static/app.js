@@ -1200,10 +1200,6 @@ var Hoth = (function() {
   app.onRegisterGoClick = function() {
     if (this.elRegisterGoButton.disabled) return;
     this.removeSignInFeedback();
-    if (this.elPassword.value < 8) {
-      this.elPassword.classList.add('error');
-      return;
-    }
     if (this.elConfirmPassword.value !== this.elPassword.value) {
       this.elConfirmPassword.classList.add('error');
       return;
@@ -1220,6 +1216,10 @@ var Hoth = (function() {
         return;
       } else if (err) {
         app.elPassword.classList.add('error');
+        if (err.type === 'passwordTooShort') {
+          app.elSignInForm.dataset.min = err.min;
+          app.elSignInForm.classList.add('short');
+        }
         return;
       }
       app.signIn(data);
@@ -1229,6 +1229,7 @@ var Hoth = (function() {
   app.removeSignInFeedback = function() {
     this.elUsername.classList.remove('error');
     this.elPassword.classList.remove('error');
+    this.elSignInForm.classList.remove('short');
     this.elConfirmPassword.classList.remove('error');
   };
 

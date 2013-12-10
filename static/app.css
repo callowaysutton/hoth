@@ -58,6 +58,17 @@ body {
 .hoth-sign-in-input.error {
   border-color: #b00;
 }
+.hoth-sign-in-form.short::before {
+  content: 'Must comprise at least ' attr(data-min) ' characters.';
+  position: absolute;
+  background: #fee;
+  padding: 8px;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 8px 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+}
 .hoth-sign-in-remember {
   display: block;
   margin: 0 0 8px;
