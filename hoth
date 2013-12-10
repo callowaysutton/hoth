@@ -9,10 +9,6 @@ if (process.argv[2] === '--help' || process.argv[2] === '-h') {
 
 var bcrypt = require('bcryptjs');
 
-var mongoose = require('mongoose');
-var ObjectId = mongoose.Schema.Types.ObjectId;
-mongoose.connect('mongodb://localhost/hoth');
-
 var CONFIG = JSON.parse(fs.readFileSync(__dirname + '/default.json'));
 if (process.argv[2]) {
   var USER_CONFIG = JSON.parse(fs.readFileSync(process.argv[2]));
@@ -20,6 +16,10 @@ if (process.argv[2]) {
     CONFIG[key] = USER_CONFIG[key];
   }
 }
+
+var mongoose = require('mongoose');
+var ObjectId = mongoose.Schema.Types.ObjectId;
+mongoose.connect('mongodb://localhost:'+CONFIG.mongoPort+'/hoth');
 
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
