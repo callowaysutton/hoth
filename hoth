@@ -288,7 +288,6 @@ db.once('open', function() {
           .populate('messages')
           .exec(function(err, thread) {
             if (err) return handleError(err, cb);
-            console.log(data, thread);
             cb(null, thread ? thread.messages : []);
           });
       }
