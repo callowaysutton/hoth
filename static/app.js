@@ -311,6 +311,11 @@ var Hoth = (function() {
       offset = 0;
     }
 
+    if (length === 0) {
+      this.loaded = true;
+      return;
+    }
+
     this.loading = true;
     socket.emit('thread history', {
       thread: this.id,

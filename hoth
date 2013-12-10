@@ -276,6 +276,10 @@ db.once('open', function() {
     });
 
     socket.on('thread history', function(data, cb) {
+      if (data.length > 100 || data.length <= 0) {
+        return cb('invalid length');
+      }
+
       var query = Thread.queryBySpec(data.thread);
 
       if (query) {
