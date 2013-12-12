@@ -335,7 +335,7 @@ db.once('open', function() {
       socket.on('create thread', function(cb) {
         new Thread({
           messages: []
-        }).save(function(thread) {
+        }).save(function(err, thread) {
           socket.broadcast.emit('open thread', '!' + thread._id);
           cb(null, thread._id);
         })
