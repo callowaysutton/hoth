@@ -1063,6 +1063,7 @@ var Hoth = (function() {
     document.body.appendChild(this.element);
 
     this.element.appendChild(this.elLightbox = el('hoth-lightbox'));
+    this.element.appendChild(this.elWarning = el('hoth-dialog'));
     this.element.appendChild(this.elSignInForm = el('hoth-sign-in-form sign-in'));
     this.elSignInForm.appendChild(this.elUsername = el('hoth-sign-in-input', 'input'));
     this.elUsername.autofocus = true;
@@ -1132,16 +1133,50 @@ var Hoth = (function() {
     this.elRegisterGoButton.addEventListener('click', this.onRegisterGoClick.bind(this));
   };
 
+  Object.defineProperty(app, 'connected', {
+    set: function(connected) {
+      this.$connected = connected;
+      if (!this.connected) {
+        this.warn('Not connected');
+      } else {
+        this.hideWarning();
+      }
+    },
+    get: function() {
+      return this.$connected;
+    }
+  });
+
+  app.hideWarning = function() {
+    this.warning = null;
+    if (this.signInShown) return;
+    this.elLightbox.style.display = 'none';
+    this.elWarning.style.display = 'none';
+  };
+
+  app.warn = function(message) {
+    this.warning = message;
+    if (this.signInShown) return;
+    this.elWarning.textContent = message;
+    this.elLightbox.style.display = 'block';
+    this.elWarning.style.display = 'block';
+  };
+
   app.showSignIn = function() {
     this.elLightbox.style.display = 'block';
     this.elSignInForm.style.display = 'block';
+    this.signInShown = true;
     this.elUsername.value = localStorage.getItem('hoth.name');
     this.focusSignIn();
   };
 
   app.hideSignIn = function() {
-    this.elLightbox.style.display = 'none';
     this.elSignInForm.style.display = 'none';
+    this.elLightbox.style.display = this.warning ? 'block' : 'none';
+    this.signInShown = false;
+    if (this.warning) {
+      this.warn(this.warning);
+    }
     setTimeout(function() {
       app.prompt.focus();
     });
@@ -1402,6 +1437,14 @@ var Hoth = (function() {
   });
 
   var socket = io.connect('https://' + location.host, { secure: true });
+
+  socket.on('connect', function() {
+    app.connected = true;
+  });
+
+  socket.on('disconnect', function() {
+    app.connected = false;
+  });
 
   socket.on('system', function(data) {
     if (!data.body) return;
