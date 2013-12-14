@@ -12,7 +12,16 @@ var Hoth = (function() {
   };
 
   var formatTime = function(d) {
-    return d.getHours() + ':' + pad('0', 2, '' + d.getMinutes());
+    var now = new Date;
+    var s = '';
+    if (d.getFullYear() !== now.getFullYear() ||
+        d.getMonth() !== now.getMonth() ||
+        d.getDate() !== now.getDate()) {
+      s += d.toLocaleDateString() + ' ';
+    }
+
+    s += d.getHours() + ':' + pad('0', 2, '' + d.getMinutes());
+    return s;
   };
 
   var escapeXML = function(string) {
