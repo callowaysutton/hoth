@@ -29,6 +29,8 @@ var Hoth = (function() {
   };
 
   var RE_HASHTAG = /^(#([^\s{}\[\]]+?)|!(\w+))([\.!?"',;:\)\]]*(\s|$))/;
+  var RE_AUTOLINK = /^(https?:\/\/\S+)([\.!?"',;:\)\]]*(\s|$))/;
+  var RE_LINK = /^<(https?:\/\/[^>]+)>/;
   var RE_INLINE_CODE = /^(\[(`+)([^]+?)\2\])|^((`+)([^]+?)\5)/;
   var RE_STRONG = /^__/;
   var RE_EMPHASIS = /^_/;
@@ -89,10 +91,14 @@ var Hoth = (function() {
         toggle(x[0], 'strong');
       } else if (x = RE_EMPHASIS.exec(sub)) {
         toggle(x[0], 'em');
+      } else if (x = RE_AUTOLINK.exec(sub)) {
+        result += '<a href="' + escapeXML(x[1]) + '">' + escapeXML(x[1]) + '</a>' + escapeXML(x[2]);
+      } else if (x = RE_LINK.exec(sub)) {
+        result += '&lt;<a href="' + escapeXML(x[1]) + '">' + escapeXML(x[1]) + '</a>&gt;';
       } else if (x = RE_WORD.exec(sub)) {
         result += escapeXML(x[0]);
       } else {
-        var j = string.slice(i + 1).search(/[#!\[`_*]/);
+        var j = string.slice(i + 1).search(/[#!\[`_*<h]/);
         if (j === -1) {
           j = string.length;
         } else {
