@@ -221,13 +221,15 @@ var Hoth = (function() {
     }
   });
 
+  Thread.prototype.COLLAPSE_THRESHOLD = 1000 * 60 * 2;
+
   Thread.prototype.append = function(message) {
     var messages = [].concat.apply([], [].slice.call(arguments));
     for (var i = 0; i < messages.length; i++) {
       message = messages[i];
       message.delete();
 
-      if (this.lastMessage && this.lastMessage.authorId === message.authorId && this.lastMessage.constructor === message.constructor) {
+      if (this.lastMessage && this.lastMessage.authorId === message.authorId && message.time - this.lastMessage.time < Thread.prototype.COLLAPSE_THRESHOLD && this.lastMessage.constructor === message.constructor) {
         message.collapsed = true;
       }
 
@@ -242,6 +244,29 @@ var Hoth = (function() {
 
     this.messageCount += messages.length;
     this.contentChanged();
+  };
+
+  Thread.prototype.insert = function(index, message) {
+    var oldSize = this.contentSize;
+
+    var messages = [].concat.apply([], [].slice.call(arguments, 1));
+    for (var i = messages.length; i--;) {
+      message = messages[i];
+      message.delete();
+
+      var after = this.messages[index];
+      if (after && after.authorId === message.authorId && message.time - this.lastMessage.time < Thread.prototype.COLLAPSE_THRESHOLD && after.constructor === message.constructor) {
+        after.collapsed = true;
+      }
+
+      this.messages.splice(index, 0, message);
+      this.elMessages.insertBefore(message.element, after ? after.element : this.prompt ? this.prompt.element : null);
+      message.thread = this;
+    }
+
+    this.messageCount += messages.length;
+    this.contentSize = this.elWrap.offsetHeight;
+    this.scroll += this.contentSize - oldSize;
   };
 
   Thread.prototype.close = function() {
@@ -332,29 +357,6 @@ var Hoth = (function() {
       }
       this.loading = false;
     }.bind(this));
-  };
-
-  Thread.prototype.insert = function(index, message) {
-    var oldSize = this.contentSize;
-
-    var messages = [].concat.apply([], [].slice.call(arguments, 1));
-    for (var i = messages.length; i--;) {
-      message = messages[i];
-      message.delete();
-
-      var after = this.messages[index];
-      if (after && after.authorId === message.authorId && after.constructor === message.constructor) {
-        after.collapsed = true;
-      }
-
-      this.messages.splice(index, 0, message);
-      this.elMessages.insertBefore(message.element, after ? after.element : this.prompt ? this.prompt.element : null);
-      message.thread = this;
-    }
-
-    this.messageCount += messages.length;
-    this.contentSize = this.elWrap.offsetHeight;
-    this.scroll += this.contentSize - oldSize;
   };
 
   Thread.prototype.onMouseWheel = function(e) {
