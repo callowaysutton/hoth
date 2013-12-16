@@ -34,7 +34,8 @@ var Hoth = (function() {
   var RE_INLINE_CODE = /^(\[(`+)([^]+?)\2\])|^((`+)([^]+?)\5)/;
   var RE_STRONG = /^__/;
   var RE_EMPHASIS = /^_/;
-  var RE_WORD = /^[^\[!`_\s#][^_#\s]+|^\s+/;
+  var RE_ESCAPE = /^\\(.)/;
+  var RE_WORD = /^[^\[!`_\s#\\][^\s_#\\]+|^\s+/;
 
   var parse = function(string) {
     string = string.trim();
@@ -95,10 +96,12 @@ var Hoth = (function() {
         result += '<a target=_blank href="' + escapeXML(x[1]) + '">' + escapeXML(x[1]) + '</a>' + escapeXML(x[2]);
       } else if (x = RE_LINK.exec(sub)) {
         result += '&lt;<a target=_blank href="' + escapeXML(x[1]) + '">' + escapeXML(x[1]) + '</a>&gt;';
+      } else if (x = RE_ESCAPE.exec(sub)) {
+        result += escapeXML(x[1]);
       } else if (x = RE_WORD.exec(sub)) {
         result += escapeXML(x[0]);
       } else {
-        var j = string.slice(i + 1).search(/[#!\[`_*<h]/);
+        var j = string.slice(i + 1).search(/[\\#!\[`_<h]/);
         if (j === -1) {
           j = string.length;
         } else {
@@ -118,6 +121,10 @@ var Hoth = (function() {
     }
 
     return result;
+  };
+
+  var escapeMarkup = function(text) {
+    return text.replace(/[\\#!\[`_<h]/g, '\\$&');
   };
 
   var Thread = function(data) {
@@ -1492,7 +1499,27 @@ var Hoth = (function() {
     });
   });
 
+  socket.on('user join', function(name) {
+    app.threads.forEach(function(thread) {
+      thread.append(new SystemMessage({
+        body: '__' + escapeMarkup(name) + '__ joined.'
+      }))
+    });
+  });
+
+  socket.on('user leave', function(name) {
+    app.threads.forEach(function(thread) {
+      thread.append(new SystemMessage({
+        body: '__' + escapeMarkup(name) + '__ left.'
+      }))
+    });
+  });
+
   app.init();
+
+  app.escapeXML = escapeXML;
+  app.escapeMarkup = escapeMarkup;
+  app.parse = parse;
 
   app.User = User;
   app.Thread = Thread;
