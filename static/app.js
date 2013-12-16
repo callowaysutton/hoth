@@ -1081,6 +1081,7 @@ var Hoth = (function() {
 
     this.element.appendChild(this.elLightbox = el('hoth-lightbox'));
     this.element.appendChild(this.elWarning = el('hoth-dialog'));
+    this.elWarning.style.display = 'none';
     this.element.appendChild(this.elSignInForm = el('hoth-sign-in-form sign-in'));
     this.elSignInForm.appendChild(this.elUsername = el('hoth-sign-in-input', 'input'));
     this.elUsername.autofocus = true;
