@@ -3,7 +3,7 @@
 var fs = require('fs');
 
 if (process.argv[2] === '--help' || process.argv[2] === '-h') {
-  console.log('Usage: node hoth.js');
+  console.log('Usage: node hoth.js [ config.json ]');
   return;
 }
 

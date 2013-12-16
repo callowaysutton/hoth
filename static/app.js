@@ -1318,7 +1318,7 @@ var Hoth = (function() {
     this.elConfirmPassword.classList.remove('error');
   };
 
-  app.signIn = function(data) {
+  app.signIn = function(data, quiet) {
     currentUser = new User(data.user);
     localStorage.setItem('hoth.name', currentUser.name);
     if (data.token) {
@@ -1327,7 +1327,9 @@ var Hoth = (function() {
       localStorage.removeItem('hoth.token');
     }
     this.hideSignIn();
-    socket.emit('init');
+    if (!quiet) {
+      socket.emit('init');
+    }
   };
 
   Object.defineProperty(app, 'prompt', {
@@ -1487,8 +1489,36 @@ var Hoth = (function() {
     app.connected = true;
   });
 
+  socket.on('reconnect', function() {
+    app.connected = true;
+    var name = currentUser.name;
+    var token = localStorage.getItem('hoth.token');
+    currentUser = null;
+
+    if (name && token) {
+      socket.emit('sign in', {
+        name: name,
+        token: token
+      }, function(err, data) {
+        if (err) {
+          app.showSignIn();
+          return;
+        }
+        app.signIn(data, true);
+      });
+    } else {
+      app.showSignIn();
+    }
+    app.lobby.append(new SystemMessage({
+      body: 'Reconnected to server.'
+    }));
+  });
+
   socket.on('disconnect', function() {
     app.connected = false;
+    app.lobby.append(new SystemMessage({
+      body: 'Disconnected from server.'
+    }));
   });
 
   socket.on('system', function(data) {
@@ -1520,19 +1550,15 @@ var Hoth = (function() {
   });
 
   socket.on('user join', function(name) {
-    app.threads.forEach(function(thread) {
-      thread.append(new SystemMessage({
-        body: '__' + escapeMarkup(name) + '__ joined.'
-      }));
-    });
+    app.lobby.append(new SystemMessage({
+      body: '__' + escapeMarkup(name) + '__ joined.'
+    }));
   });
 
   socket.on('user leave', function(name) {
-    app.threads.forEach(function(thread) {
-      thread.append(new SystemMessage({
-        body: '__' + escapeMarkup(name) + '__ left.'
-      }));
-    });
+    app.lobby.append(new SystemMessage({
+      body: '__' + escapeMarkup(name) + '__ left.'
+    }));
   });
 
   app.init();
