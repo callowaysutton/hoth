@@ -92,9 +92,9 @@ var Hoth = (function() {
       } else if (x = RE_EMPHASIS.exec(sub)) {
         toggle(x[0], 'em');
       } else if (x = RE_AUTOLINK.exec(sub)) {
-        result += '<a href="' + escapeXML(x[1]) + '">' + escapeXML(x[1]) + '</a>' + escapeXML(x[2]);
+        result += '<a target=_blank href="' + escapeXML(x[1]) + '">' + escapeXML(x[1]) + '</a>' + escapeXML(x[2]);
       } else if (x = RE_LINK.exec(sub)) {
-        result += '&lt;<a href="' + escapeXML(x[1]) + '">' + escapeXML(x[1]) + '</a>&gt;';
+        result += '&lt;<a target=_blank href="' + escapeXML(x[1]) + '">' + escapeXML(x[1]) + '</a>&gt;';
       } else if (x = RE_WORD.exec(sub)) {
         result += escapeXML(x[0]);
       } else {
