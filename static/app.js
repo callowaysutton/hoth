@@ -1020,6 +1020,19 @@ var Hoth = (function() {
     });
   };
 
+  // Users
+
+  commands.online = function() {
+    User.online(function(err, list) {
+      if (err) return;
+      app.activeThread.append(new SystemMessage({
+        body: '__Online users:__\n' + list.sort().map(function(name) {
+          return escapeMarkup(name);
+        }).join('\n')
+      }));
+    });
+  };
+
   // Threads
 
   commands.open = commands.o = function(id) {
@@ -1072,6 +1085,13 @@ var Hoth = (function() {
     socket.emit('user', id, function(err, data) {
       if (err) return callback(err);
       callback(null, User.map[id] = new User(data));
+    });
+  };
+
+  User.online = function(callback) {
+    socket.emit('user list', function(err, list) {
+      if (err) return callback(err);
+      callback(null, list);
     });
   };
 
@@ -1503,7 +1523,7 @@ var Hoth = (function() {
     app.threads.forEach(function(thread) {
       thread.append(new SystemMessage({
         body: '__' + escapeMarkup(name) + '__ joined.'
-      }))
+      }));
     });
   });
 
@@ -1511,7 +1531,7 @@ var Hoth = (function() {
     app.threads.forEach(function(thread) {
       thread.append(new SystemMessage({
         body: '__' + escapeMarkup(name) + '__ left.'
-      }))
+      }));
     });
   });
 

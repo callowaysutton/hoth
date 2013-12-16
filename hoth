@@ -164,10 +164,10 @@ db.once('open', function() {
 
   io.sockets.on('connection', function(socket) {
 
-    var currentUser = null;
+    socket.currentUser = null;
 
     function signIn(remember, user, cb) {
-      currentUser = user;
+      socket.currentUser = user;
       if (remember) {
         UserToken.create(user.name, function(err, tuple) {
           if (err) return handleError(err, cb);
@@ -191,7 +191,7 @@ db.once('open', function() {
     }
 
     socket.on('sign in', function(data, cb) {
-      if (currentUser) return cb('already signed in');
+      if (socket.currentUser) return cb('already signed in');
 
       if (data.token) {
         UserToken.findOne({ name: data.name, token: data.token }, function(err, tuple) {
@@ -201,7 +201,7 @@ db.once('open', function() {
             if (err) return handleError(err, cb);
             User.findByName(data.name, function(err, user) {
               if (err) return handleError(err, cb);
-              currentUser = user;
+              socket.currentUser = user;
               cb(null, {
                 user: user.toJSON(),
                 token: tuple.token
@@ -226,7 +226,7 @@ db.once('open', function() {
     });
 
     socket.on('create account', function(data, cb) {
-      if (currentUser) return cb('already signed in');
+      if (socket.currentUser) return cb('already signed in');
 
       if (!data.name) return cb('bad username');
       if (data.password.length < CONFIG.minPasswordLength) {
@@ -266,6 +266,14 @@ db.once('open', function() {
         if (!user) return cb('user not found');
         cb(null, user.toJSON());
       });
+    });
+
+    socket.on('user list', function(cb) {
+      var users = {};
+      io.sockets.clients().forEach(function(client) {
+        if (client.currentUser) users[client.currentUser.name] = true;
+      });
+      cb(null, Object.keys(users));
     });
 
     socket.on('thread length', function(data, cb) {
@@ -308,14 +316,14 @@ db.once('open', function() {
 
     function hasUser() {
 
-      socket.broadcast.emit('user join', currentUser.name);
+      socket.broadcast.emit('user join', socket.currentUser.name);
 
       socket.on('chat', function(data) {
         socket.broadcast.emit('chat', data);
         socket.broadcast.emit('open thread', data.thread);
         append(data.thread, new Message({
           type: 'chat',
-          author: currentUser._id,
+          author: socket.currentUser._id,
           body: data.body
         }));
       });
@@ -344,7 +352,7 @@ db.once('open', function() {
       });
 
       socket.on('disconnect', function() {
-        socket.broadcast.emit('user leave', currentUser.name);
+        socket.broadcast.emit('user leave', socket.currentUser.name);
       });
 
     }
