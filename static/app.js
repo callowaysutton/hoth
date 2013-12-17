@@ -930,6 +930,18 @@ var Hoth = (function() {
     return false;
   };
 
+  StringStream.prototype.consumeAll = function(s) {
+    var state = this.save();
+    for (var i = 0; i < s.length; i++) {
+      if (this.peek() !== s.charAt(i)) {
+        this.restore(state);
+        return false;
+      }
+      this.next();
+    }
+    return true;
+  };
+
   StringStream.prototype.require = function(c) {
     if (this.peek() !== c) {
       this.error(c + ' expected', this.save());
@@ -1009,17 +1021,16 @@ var Hoth = (function() {
   Script.prototype.execExp = function(precedence) {
     var arg = this.execArg();
     var operators = this.environment.operators;
-    if (Object.prototype.toString.call(operators) !== '[object Object]') return;
-    var operatorNames = Object.getOwnPropertyNames(operators);
+    var operatorNames = commands.keys(operators);
     do {
       var has = false;
       this.stream.skipSpace();
       var start = this.stream.save();
       for (var i = 0; i < operatorNames.length; i++) {
         var op = operators[operatorNames[i]];
-        var prec = typeof op === 'number' ? op : op.precedence;
-        var right = typeof op !== 'number' && op.right;
-        if (prec >= precedence && this.stream.consume(operatorNames[i])) {
+        var prec = commands.isobject(op) ? op.precedence : Number(op);
+        var right = commands.isobject(op) && op.right;
+        if (prec >= precedence && this.stream.consumeAll(operatorNames[i])) {
           this.stream.skipSpace();
           arg = this.call(operatorNames[i], [arg, this.execExp(right ? prec : prec + .0001)], start);
           has = true;
@@ -1072,7 +1083,7 @@ var Hoth = (function() {
     return NO_ARG;
   };
 
-  var globals = {};
+  var globals = Object.create(null);
   var handlers = {};
   var commands = {};
 
@@ -1098,8 +1109,41 @@ var Hoth = (function() {
 
   commands.log = function() {
     app.activeThread.append(new Message({
-      body: [].join.call(arguments, ' ')
+      body: [].map.call(arguments, function(arg) {
+        return commands.tostr(arg);
+      }).join(' ')
     }));
+  };
+
+  commands.tostr = function(obj, instances) {
+    if (instances) {
+      if (instances.indexOf(obj) !== -1) {
+        return '*recursion*';
+      }
+    } else {
+      instances = [];
+    }
+    switch (commands.type(obj)) {
+      case 'number':
+      case 'boolean':
+        return '' + obj;
+      case 'string':
+        if (/^[^ \t\n\r$;(){}]+$/.test(obj)) {
+          return obj;
+        } else {
+          return '{' + obj + '}';
+        }
+      case 'object':
+        instances.push(obj);
+        var keys = commands.keys(obj);
+        return '(#' + (keys.length ? ' ' + keys.map(function(key) {
+          return commands.tostr(key, instances) + ' ' + commands.tostr(obj[key], instances);
+        }).join(' ') : '') + ')';
+      case 'array':
+        return '(|'
+      default:
+        return '*internal*';
+    }
   };
 
   commands.help = function() {
@@ -1116,6 +1160,41 @@ var Hoth = (function() {
     app.activeThread = new Console;
   };
 
+  // Types
+
+  commands.type = function(obj) {
+    return typeof obj === 'boolean' ? 'boolean' :
+      typeof obj === 'number' ? 'number' :
+      typeof obj === 'string' ? 'string' :
+      Object.prototype.toString.call(obj) === '[object Array]' ? 'array' :
+      Object.prototype.toString.call(obj) === '[object Object]' ? 'object' :
+      'internal';
+  };
+
+  commands['boolean?'] = commands.isboolean = function(obj) {
+    return commands.type(obj) === 'boolean';
+  };
+
+  commands['number?'] = commands.isnumber = function(obj) {
+    return commands.type(obj) === 'number';
+  };
+
+  commands['string?'] = commands.isstring = function(obj) {
+    return commands.type(obj) === 'string';
+  };
+
+  commands['array?'] = commands.isarray = function(obj) {
+    return commands.type(obj) === 'array';
+  };
+
+  commands['object?'] = commands.isobject = function(obj) {
+    return commands.type(obj) === 'object';
+  };
+
+  commands['internal?'] = commands.isinternal = function(obj) {
+    return commands.type(obj) === 'internal';
+  };
+
   // Control flow
 
   commands.repeat = function(n, command) {
@@ -1129,10 +1208,24 @@ var Hoth = (function() {
 
   commands.if = function(condition, then, otherwise) {
     if (condition) {
-      if (then) new Script(then).run();
+      if (then) return new Script(then).run(commands.if.environment);
     } else {
-      if (otherwise) new Script(then).run();
+      if (otherwise) return new Script(then).run(commands.if.environment);
     }
+  };
+
+  commands.def = function(name) {
+    var environment = commands.def.environment;
+    var fps = [].slice.call(arguments, 1, -1);
+    var body = new Script(arguments[fps.length + 1]);
+    commands[name] = function() {
+      var vars = Object.create(environment);
+      for (var i = 0; i < fps.length; i++) {
+        vars[fps[i]] = arguments[i];
+      }
+      console.log(vars);
+      return body.run(vars);
+    };
   };
 
   // Variables
@@ -1150,7 +1243,7 @@ var Hoth = (function() {
   // Dicts
 
   commands.dict = commands['#'] = function() {
-    var result = Object.create({});
+    var result = Object.create(null);
     var args = arguments;
     for (var i = 0; i + 1 < args.length; i += 2) {
       result[args[i]] = args[i + 1];
@@ -1158,8 +1251,9 @@ var Hoth = (function() {
     return result;
   };
 
-  commands.put = function(dict, key, value) {
-    for (var i = 0; i + 1 < args.length; i += 2) {
+  commands.put = function(dict) {
+    var args = arguments;
+    for (var i = 1; i + 1 < args.length; i += 2) {
       dict[args[i]] = args[i + 1];
     }
     return dict;
@@ -1185,8 +1279,8 @@ var Hoth = (function() {
   commands.keys = function(object) {
     var keys = [];
     var p = object;
-    while (p) {
-      keys = keys.concat(Object.getOwnPropertyNames(object));
+    while (p && p !== Object.prototype) {
+      keys = keys.concat(Object.getOwnPropertyNames(p));
       p = Object.getPrototypeOf(p);
     }
     return keys;
