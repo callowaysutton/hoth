@@ -4,5 +4,49 @@
 <title>Hoth</title>
 <link rel=stylesheet href=app.css>
 <body>
+<script type=text/x-hoth>
+def plugin ... {
+  set plugins (plugin.all)
+  with (next $...) {
+    when list {
+      set s __Plugins:__
+      each (keys $plugins) as p {
+        set s $s . $NL . $p
+      }
+      print $s
+    }
+    when add {
+      set name (next $...)
+      set events (next $...)
+      put $plugins $name (# name $name events $events)
+    }
+    when clear {
+      set plugins (#)
+    }
+    when run {
+      set name (next $...)
+      print Running plugin $name
+      set p $plugins @ $name
+      each (keys $p @ events) as name {
+        on $name $p @ events @ $name
+      }
+    }
+    when edit {
+      set name (next $...)
+      setprompt {plugin set } . $name . { } . (tostr $plugins @ $name)
+    }
+  }
+  stash hoth.plugins $plugins
+}
+def plugin.all {
+  put (unstash hoth.plugins) | (#)
+}
+def plugin.init {
+  each (keys (plugin.all)) as p {
+    plugin run $p
+  }
+}
+plugin.init
+</script>
 <script src=/socket.io/socket.io.js></script>
 <script src=app.js></script>

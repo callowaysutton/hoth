@@ -776,6 +776,7 @@ var Hoth = (function() {
     },
     set: function(value) {
       this.elInput.value = value;
+      this.autosize();
     }
   });
 
@@ -853,12 +854,16 @@ var Hoth = (function() {
 
   ScriptError.prototype.toString = function() {
     var i = this.position;
-    var lines = this.source.split(/\r?\n|\r/);
+    var lines = this.source.split(/(?=\r?\n|\r)/);
     while (i > lines[0].length) {
       i -= lines[0].length;
       lines.shift();
     }
-    return 'Error: ' + this.message + '\n' + lines[0] + '\n' + Array(i + 1).join(' ') + '^';
+    var line = lines[0].replace(/\r?\n|\r/, function(x) {
+      i -= x.length;
+      return '';
+    });
+    return 'Error: ' + this.message + '\n' + line + '\n' + Array(i + 1).join(' ') + '^';
   };
 
   var StringStream = function(string, start, end) {
@@ -957,6 +962,14 @@ var Hoth = (function() {
     return value;
   };
 
+  StringStream.prototype.space = function() {
+    var value = '';
+    while (this.whitespace) {
+      value += this.next();
+    }
+    return value;
+  };
+
   StringStream.prototype.skipSpace = function() {
     while (this.whitespace) {
       this.next();
@@ -1028,13 +1041,17 @@ var Hoth = (function() {
       var start = this.stream.save();
       for (var i = 0; i < operatorNames.length; i++) {
         var op = operators[operatorNames[i]];
-        var prec = commands.isobject(op) ? op.precedence : Number(op);
-        var right = commands.isobject(op) && op.right;
+        var prec = commands.isobj(op) ? op.precedence : Number(op);
+        var right = commands.isobj(op) && op.right;
+        var state = this.stream.save();
         if (prec >= precedence && this.stream.consumeAll(operatorNames[i])) {
-          this.stream.skipSpace();
-          arg = this.call(operatorNames[i], [arg, this.execExp(right ? prec : prec + .0001)], start);
-          has = true;
-          break;
+          if (!this.stream.space()) {
+            this.stream.restore(state);
+          } else {
+            arg = this.call(operatorNames[i], [arg, this.execExp(right ? prec : prec + .0001)], start);
+            has = true;
+            break;
+          }
         }
       }
     } while (has);
@@ -1091,12 +1108,14 @@ var Hoth = (function() {
 
   globals.operators = {
     '.': 20,
+    '=': 40,
     '+': 50,
     '-': 50,
     '*': 60,
     '/': 60,
     '^': { precedence: 70, right: true },
-    '@': 80
+    '|': 80,
+    '@': 90
   };
 
   Object.defineProperty(globals, 'vars', {
@@ -1105,9 +1124,19 @@ var Hoth = (function() {
     }
   });
 
+  globals.globals = globals;
+
   // Debugging
 
-  commands.log = function() {
+  commands.print = function() {
+    app.activeThread.append(new Message({
+      body: [].map.call(arguments, function(arg) {
+        return commands.isstr(arg) ? arg : commands.tostr(arg);
+      }).join(' ')
+    }));
+  };
+
+  commands.show = function() {
     app.activeThread.append(new Message({
       body: [].map.call(arguments, function(arg) {
         return commands.tostr(arg);
@@ -1115,10 +1144,15 @@ var Hoth = (function() {
     }));
   };
 
+  commands.log = function() {
+    console.log.apply(console, arguments);
+  };
+
   commands.tostr = function(obj, instances) {
     if (instances) {
-      if (instances.indexOf(obj) !== -1) {
-        return '*recursion*';
+      var i = instances.indexOf(obj);
+      if (i !== -1) {
+        return '*recursion@' + i + '*';
       }
     } else {
       instances = [];
@@ -1140,7 +1174,9 @@ var Hoth = (function() {
           return commands.tostr(key, instances) + ' ' + commands.tostr(obj[key], instances);
         }).join(' ') : '') + ')';
       case 'array':
-        return '(|'
+        return '(:' + (obj.length ? ' ' + obj.map(function(item) {
+          return commands.tostr(item, instances);
+        }).join(' ') : '') + ')';
       default:
         return '*internal*';
     }
@@ -1151,7 +1187,7 @@ var Hoth = (function() {
     for (var key in commands) if (Object.prototype.hasOwnProperty.call(commands, key)) {
       list.push('```' + key + '```');
     }
-    app.activeThread.append(new SystemMessage({
+    app.activeThread.append(new Message({
       body: '__Commands:__\n' + list.join('\n')
     }));
   };
@@ -1171,23 +1207,23 @@ var Hoth = (function() {
       'internal';
   };
 
-  commands['boolean?'] = commands.isboolean = function(obj) {
+  commands['bool?'] = commands.isbool = function(obj) {
     return commands.type(obj) === 'boolean';
   };
 
-  commands['number?'] = commands.isnumber = function(obj) {
+  commands['num?'] = commands.isnum = function(obj) {
     return commands.type(obj) === 'number';
   };
 
-  commands['string?'] = commands.isstring = function(obj) {
+  commands['str?'] = commands.isstr = function(obj) {
     return commands.type(obj) === 'string';
   };
 
-  commands['array?'] = commands.isarray = function(obj) {
+  commands['arr?'] = commands.isarr = function(obj) {
     return commands.type(obj) === 'array';
   };
 
-  commands['object?'] = commands.isobject = function(obj) {
+  commands['obj?'] = commands.isobj = function(obj) {
     return commands.type(obj) === 'object';
   };
 
@@ -1201,16 +1237,19 @@ var Hoth = (function() {
     var body = new Script(command);
     for (var i = 0; i < n; i++) {
       body.run(app.env(commands.repeat.environment, {
-        '#': i + 1
+        '#': i
       }));
     }
   };
 
-  commands.if = function(condition, then, otherwise) {
+  commands.if = function(condition, then, else_, otherwise) {
     if (condition) {
-      if (then) return new Script(then).run(commands.if.environment);
+      return new Script(then).run(commands.if.environment);
     } else {
-      if (otherwise) return new Script(then).run(commands.if.environment);
+      if (else_) {
+        if (else_ !== 'else') throw new ScriptError('"else" expected');
+        return new Script(otherwise).run(commands.if.environment);
+      }
     }
   };
 
@@ -1221,11 +1260,30 @@ var Hoth = (function() {
     commands[name] = function() {
       var vars = Object.create(environment);
       for (var i = 0; i < fps.length; i++) {
+        if (fps[i] === '...') {
+          vars['...'] = [].slice.call(arguments, i);
+          break;
+        }
         vars[fps[i]] = arguments[i];
       }
-      console.log(vars);
       return body.run(vars);
     };
+  };
+
+  commands.with = function(value, body) {
+    return new Script(body).run(app.env(commands.with.environment, {
+      '.': value
+    }));
+  };
+
+  commands.when = function(value, body) {
+    if (commands['='](commands.when.environment['.'], value)) {
+      return new Script(body).run(commands.when.environment);
+    }
+  };
+
+  commands.run = function(body, vars) {
+    return new Script(body).run(vars);
   };
 
   // Variables
@@ -1286,6 +1344,35 @@ var Hoth = (function() {
     return keys;
   };
 
+  // Lists
+
+  commands.list = commands[':'] = function() {
+    return [].slice.call(arguments);
+  };
+
+  commands.each = function() {
+    var a = 0;
+    var list = arguments[a++];
+    var name = arguments[a] === 'as' ? (a++, arguments[a++]) : '?';
+    var body = new Script(arguments[a++]);
+    for (var i = 0; i < list.length; i++) {
+      var vars = {};
+      vars[name] = list[i];
+      vars['#'] = i;
+      vars['.'] = list;
+      body.run(app.env(commands.each.environment, vars));
+    }
+  };
+
+  commands.add = function(list, item) {
+    list.push.apply(list, [].slice.call(arguments, 1));
+    return list;
+  };
+
+  commands.next = function(list) {
+    return list.shift();
+  };
+
   // Arithmetic
 
   commands['+'] = function() {
@@ -1314,8 +1401,20 @@ var Hoth = (function() {
 
   // Strings
 
+  globals.NL = '\n';
+
   commands['.'] = function() {
     return [].join.call(arguments, '');
+  };
+
+  // Equality
+
+  commands['='] = function(x, y) {
+    return commands.tostr(x) === commands.tostr(y);
+  };
+
+  commands['|'] = function(x, y) {
+    return x == null ? y : x;
   };
 
   // Events
@@ -1328,6 +1427,20 @@ var Hoth = (function() {
 
   commands.unlisten = function(event) {
     delete handlers[event];
+  };
+
+  // Persistence
+
+  commands.unstash = function(key) {
+    var s = localStorage.getItem('hoth.scripts.' + key);
+    try {
+      return JSON.parse(s);
+    } catch (e) {}
+  };
+
+  commands.stash = function(key, obj) {
+    // TODO: discards prototypes
+    localStorage.setItem('hoth.scripts.' + key, JSON.stringify(obj));
   };
 
   // Sessions
@@ -1345,7 +1458,7 @@ var Hoth = (function() {
   commands.online = function() {
     User.online(function(err, list) {
       if (err) return;
-      app.activeThread.append(new SystemMessage({
+      app.activeThread.append(new Message({
         body: '__Online users:__\n' + list.sort().map(function(name) {
           return escapeMarkup(name);
         }).join('\n')
@@ -1360,6 +1473,14 @@ var Hoth = (function() {
       author: currentUser,
       body: [].join.call(arguments, ' ')
     }));
+  };
+
+  commands.setsay = function(string) {
+    app.activeThread.input.value = string;
+  };
+
+  commands.setprompt = function(string) {
+    app.activeThread.input.value = app.activeThread.prompt + string;
   };
 
   // Threads
@@ -1504,6 +1625,10 @@ var Hoth = (function() {
     this.elRegisterButton.addEventListener('click', this.onRegisterClick.bind(this));
     this.elRegisterBackButton.addEventListener('click', this.onRegisterBackClick.bind(this));
     this.elRegisterGoButton.addEventListener('click', this.onRegisterGoClick.bind(this));
+
+    [].forEach.call(document.querySelectorAll('script[type="text/x-hoth"]'), function(script) {
+      app.run(script.textContent);
+    });
   };
 
   Object.defineProperty(app, 'connected', {
