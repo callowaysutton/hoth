@@ -136,7 +136,6 @@ var Hoth = (function() {
     this.contentSize = 0;
     this.dragging = false;
     this.$scroll = 0;
-    this.$prompt = null;
 
     this.onScrollMouseMove = this.onScrollMouseMove.bind(this);
     this.onScrollMouseUp = this.onScrollMouseUp.bind(this);
@@ -145,10 +144,12 @@ var Hoth = (function() {
 
     this.id = data.id;
 
+    this.prompt = data.prompt == null ? '/' : data.prompt;
+
     if (this.id) {
       socket.emit('open thread', this.id);
       this.initLoad();
-    } else {
+    } else if (data.assignId) {
       this.loaded = true;
       socket.emit('create thread', function(err, uid) {
         if (err) return;
@@ -158,6 +159,8 @@ var Hoth = (function() {
           location.hash = this.permalink;
         }
       }.bind(this));
+    } else {
+      this.loaded = true;
     }
   };
 
@@ -169,6 +172,10 @@ var Hoth = (function() {
     var thread = Thread.map[id] || (Thread.map[id] = new Thread({ id: id }));
     app.append(thread);
     return thread;
+  };
+
+  Thread.fork = function() {
+    return new Thread({ assignId: true });
   };
 
   Thread.prototype.template = function() {
@@ -190,11 +197,15 @@ var Hoth = (function() {
   Object.defineProperty(Thread.prototype, 'id', {
     set: function(id) {
       this.$id = id;
-      this.elName.textContent = id ? id.slice(1) : '';
-      if (id && id[0] === '#') {
-        this.element.classList.add('topic');
-      } else {
-        this.element.classList.remove('topic');
+      this.title = id ? id.slice(1) : '';
+      this.element.classList.remove('topic');
+      this.element.classList.remove('temp');
+      if (id) {
+        if (id[0] === '#') {
+          this.element.classList.add('topic');
+        } else {
+          this.element.classList.add('temp');
+        }
       }
     },
     get: function() {
@@ -202,32 +213,19 @@ var Hoth = (function() {
     }
   });
 
-  Object.defineProperty(Thread.prototype, 'permalink', {
+  Object.defineProperty(Thread.prototype, 'title', {
+    set: function(title) {
+      this.$title = title;
+      this.elName.textContent = title;
+    },
     get: function() {
-      return this.id && (this.id[0] === '#' ? this.id : '#' + JSON.stringify([{ goto: this.id }]));
+      return this.$title;
     }
   });
 
-  Object.defineProperty(Thread.prototype, 'prompt', {
-    set: function(prompt) {
-      if (this.$prompt) {
-        this.$prompt.thread = null;
-        this.elMessages.removeChild(this.$prompt.element);
-        this.element.classList.remove('active');
-      }
-      if (this.$prompt = prompt) {
-        this.element.classList.add('active');
-        if (prompt.thread) {
-          prompt.thread.prompt = null;
-        }
-        prompt.thread = this;
-        this.elMessages.appendChild(prompt.element);
-      }
-      this.shouldAutoscroll = true;
-      this.contentChanged();
-    },
+  Object.defineProperty(Thread.prototype, 'permalink', {
     get: function() {
-      return this.$prompt;
+      return this.id && (this.id[0] === '#' ? this.id : '#' + JSON.stringify([{ goto: this.id }]));
     }
   });
 
@@ -243,6 +241,12 @@ var Hoth = (function() {
     }
   });
 
+  Object.defineProperty(Thread.prototype, 'active', {
+    get: function() {
+      return app.activeThread === this;
+    }
+  });
+
   Thread.prototype.COLLAPSE_THRESHOLD = 1000 * 60 * 2;
 
   Thread.prototype.append = function(message) {
@@ -251,17 +255,21 @@ var Hoth = (function() {
       message = messages[i];
       message.delete();
 
-      if (this.lastMessage && this.lastMessage.authorId === message.authorId && message.time - this.lastMessage.time < Thread.prototype.COLLAPSE_THRESHOLD && this.lastMessage.constructor === message.constructor) {
+      if (this.lastMessage && this.lastMessage.authorId === message.authorId && message.time - this.lastMessage.time < Thread.prototype.COLLAPSE_THRESHOLD && this.lastMessage.type === message.type) {
         message.collapsed = true;
       }
 
       this.messages.push(message);
-      if (this.prompt) {
-        this.elMessages.insertBefore(message.element, this.prompt.element);
+      if (this.input) {
+        this.elMessages.insertBefore(message.element, this.input.element);
       } else {
         this.elMessages.appendChild(message.element);
       }
       message.thread = this;
+
+      if (message.type === 'chat') {
+        app.emitMessage(message);
+      }
     }
 
     this.messageCount += messages.length;
@@ -277,12 +285,12 @@ var Hoth = (function() {
       message.delete();
 
       var after = this.messages[index];
-      if (after && after.authorId === message.authorId && message.time - this.lastMessage.time < Thread.prototype.COLLAPSE_THRESHOLD && after.constructor === message.constructor) {
+      if (after && after.authorId === message.authorId && message.time - this.lastMessage.time < Thread.prototype.COLLAPSE_THRESHOLD && after.type === message.type) {
         after.collapsed = true;
       }
 
       this.messages.splice(index, 0, message);
-      this.elMessages.insertBefore(message.element, after ? after.element : this.prompt ? this.prompt.element : null);
+      this.elMessages.insertBefore(message.element, after ? after.element : this.input ? this.input.element : null);
       message.thread = this;
     }
 
@@ -312,8 +320,7 @@ var Hoth = (function() {
     }
     this.open = false;
 
-    if (this.prompt) {
-      this.prompt = null;
+    if (this.active) {
       app.activeThread = null;
     }
   };
@@ -321,7 +328,46 @@ var Hoth = (function() {
   Thread.prototype.reply = function(message) {
     this.shouldAutoscroll = true;
     this.append(message);
-    socket.emit(message.isChat ? 'chat' : 'system', message.data());
+    if (this.id) {
+      socket.emit(message.type, message.data());
+      if (message.type !== 'chat') {
+        app.emitMessage(message);
+      }
+    }
+  };
+
+  Thread.prototype.activate = function() {
+    if (this.permalink) {
+      location.hash = this.permalink;
+    }
+    this.element.scrollIntoView();
+    this.element.classList.add('active');
+    if (!this.input) {
+      this.createInput();
+    }
+    if (this.input) {
+      if (this.input.empty) {
+        this.input.show();
+        this.contentChanged();
+      }
+      setTimeout(function() {
+        this.input.focus();
+      }.bind(this));
+    }
+  };
+
+  Thread.prototype.createInput = function() {
+    this.input = new Input({ thread: this });
+    this.elMessages.appendChild(this.input.element);
+    this.input.reset();
+  };
+
+  Thread.prototype.deactivate = function() {
+    this.element.classList.remove('active');
+    if (this.input && this.input.empty) {
+      this.input.hide();
+      this.contentChanged();
+    }
   };
 
   Thread.CHUNK_SIZE = 50;
@@ -390,8 +436,8 @@ var Hoth = (function() {
   Thread.prototype.onClick = function() {
     app.activeThread = this;
     if (document.getSelection().isCollapsed && this.shouldAutoscroll) {
-      if (this.prompt) {
-        this.prompt.focus();
+      if (this.input) {
+        this.input.focus();
       }
     }
   };
@@ -473,8 +519,8 @@ var Hoth = (function() {
     var max = Math.max(this.contentSize, this.viewportSize);
     if (!property) {
       this.shouldAutoscroll = max - this.viewportSize - this.scroll <= Thread.AUTOSCROLL_THRESHOLD;
-      if (this.shouldAutoscroll && this.prompt) {
-        this.prompt.focus();
+      if (this.shouldAutoscroll && this.input) {
+        this.input.focus();
       }
     }
     if (this.scroll < Thread.LOAD_THRESHOLD && !this.loaded) {
@@ -492,6 +538,48 @@ var Hoth = (function() {
     this.elWrap.style.top = -this.scroll + 'px';
   };
 
+  Thread.prototype.send = function(data) {
+    if (data.slice(0, this.prompt.length) !== this.prompt) {
+      this.sendMessage(data);
+    } else {
+      this.sendCommand(data.slice(this.prompt.length));
+    }
+  };
+
+  Thread.prototype.sendMessage = function(value) {
+    var x = RE_HASHTAG.exec(value);
+    if (x) {
+      value = value.slice(x[0].length).trim();
+      app.activeThread = Thread.get(x[1]);
+      if (!value) return;
+    }
+    var message = new ChatMessage({
+      author: currentUser,
+      body: value
+    });
+    app.activeThread.reply(message);
+  };
+
+  Thread.prototype.sendCommand = function(command) {
+    this.append(new Message({
+      type: 'terminal',
+      rawBody: this.prompt + command
+    }));
+    app.run(command);
+  };
+
+  var Console = function() {
+    Thread.call(this, {});
+
+    this.alwaysPrompt = true;
+    this.title = 'Console';
+    this.prompt = '';
+  };
+  Console.prototype = Object.create(Thread.prototype);
+  Console.prototype.constructor = Console;
+
+  Console.prototype.reply = function() {};
+
   var Message = function(data) {
     this.children = [];
 
@@ -499,17 +587,19 @@ var Hoth = (function() {
 
     this.time = data.time || new Date;
     if (data.htmlBody) {
-      this.html = data.htmlBody
+      this.html = data.htmlBody;
     } else if (data.rawBody) {
       this.html = escapeXML(data.rawBody);
     } else {
       this.body = data.body || '';
     }
+
+    this.type = data.type || 'system';
   };
 
   Message.fromJSON = function(data) {
     if (data.type === 'system') {
-      return new SystemMessage({
+      return new Message({
         body: data.body,
         time: new Date(data.sent)
       });
@@ -531,6 +621,20 @@ var Hoth = (function() {
     },
     get: function() {
       return this.$time;
+    }
+  });
+
+  Object.defineProperty(Message.prototype, 'type', {
+    set: function(type) {
+      if (this.$type) {
+        this.element.classList.remove(this.$type);
+      }
+      if (this.$type = type) {
+        this.element.classList.add(type);
+      }
+    },
+    get: function() {
+      return this.$type;
     }
   });
 
@@ -599,10 +703,9 @@ var Hoth = (function() {
   };
 
   var ChatMessage = function(data) {
-    this.isChat = true;
-
     Message.call(this, data);
 
+    this.type = 'chat';
     if (data.author) this.author = data.author;
   };
   ChatMessage.prototype = Object.create(Message.prototype);
@@ -641,36 +744,10 @@ var Hoth = (function() {
   ChatMessage.prototype.template = function() {
     Message.prototype.template.call(this);
 
-    this.element.classList.add('chat');
-
     this.elHeader.appendChild(this.elAuthor = el('hoth-message-author'));
   };
 
-  var SystemMessage = function(data) {
-    Message.call(this, data);
-  };
-  SystemMessage.prototype = Object.create(Message.prototype);
-  SystemMessage.prototype.constructor = SystemMessage;
-
-  SystemMessage.prototype.template = function() {
-    Message.prototype.template.call(this);
-
-    this.element.classList.add('system');
-  };
-
-  var ErrorMessage = function(data) {
-    Message.call(this, data);
-  };
-  ErrorMessage.prototype = Object.create(Message.prototype);
-  ErrorMessage.prototype.constructor = ErrorMessage;
-
-  ErrorMessage.prototype.template = function() {
-    Message.prototype.template.call(this);
-
-    this.element.classList.add('error');
-  };
-
-  var Prompt = function(data) {
+  var Input = function(data) {
     this.element = el('hoth-message');
     this.element.appendChild(this.elBody = el('hoth-message-body'));
 
@@ -683,9 +760,26 @@ var Hoth = (function() {
 
     this.elInput.addEventListener('input', this.autosize.bind(this));
     this.elInput.addEventListener('keydown', this.onKeyDown.bind(this));
+
+    this.thread = data.thread;
   };
 
-  Prompt.prototype.onKeyDown = function(e) {
+  Object.defineProperty(Input.prototype, 'empty', {
+    get: function() {
+      return this.elInput.value === '';
+    }
+  });
+
+  Object.defineProperty(Input.prototype, 'value', {
+    get: function() {
+      return this.elInput.value;
+    },
+    set: function(value) {
+      this.elInput.value = value;
+    }
+  });
+
+  Input.prototype.onKeyDown = function(e) {
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
       var i = app.threads.indexOf(app.activeThread);
       if (e.keyCode === 221) {
@@ -703,17 +797,29 @@ var Hoth = (function() {
 
     if (e.keyCode === 13) {
       if (currentUser) {
-        if (this.elInput.value) {
-          this.send(this.elInput.value);
-        }
-        this.elInput.value = '';
-        this.autosize();
+        var value = this.value;
+        this.reset();
+        if (value) this.thread.send(value);
       }
       e.preventDefault();
     }
   };
 
-  Prompt.prototype.autosize = function() {
+  Input.prototype.reset = function() {
+    this.value = this.thread.alwaysPrompt ? this.thread.prompt : '';
+    this.elInput.selectionStart = this.elInput.selectionEnd = this.value.length;
+    this.autosize();
+  };
+
+  Input.prototype.show = function() {
+    this.element.style.display = '';
+  };
+
+  Input.prototype.hide = function() {
+    this.element.style.display = 'none';
+  };
+
+  Input.prototype.autosize = function() {
     this.elMeasure.style.width = this.elInput.offsetWidth + 'px';
     this.elMeasure.textContent = this.elInput.value.replace(/(^|\n)$/, '$1X');
     var height = this.elMeasure.offsetHeight;
@@ -724,41 +830,18 @@ var Hoth = (function() {
         this.thread.contentChanged();
       }
     }
+    this.classify();
   };
 
-  Prompt.prototype.send = function(value) {
-    if (value[0] === '/') {
-      this.sendCommand(value.substr(1));
+  Input.prototype.classify = function() {
+    if (this.elInput.value.slice(0, this.thread.prompt.length) === this.thread.prompt) {
+      this.element.classList.add('terminal');
     } else {
-      this.sendMessage(value);
+      this.element.classList.remove('terminal');
     }
   };
 
-  Prompt.prototype.sendMessage = function(value) {
-    var x = RE_HASHTAG.exec(value);
-    if (x) {
-      value = value.slice(x[0].length).trim();
-      app.activeThread = Thread.get(x[1]);
-      if (!value) return;
-    }
-    var message = new ChatMessage({
-      author: currentUser,
-      body: value
-    });
-    this.thread.reply(message);
-  };
-
-  Prompt.prototype.sendCommand = function(command) {
-    try {
-      new Script(command).run();
-    } catch (e) {
-      app.activeThread.append(new ErrorMessage({
-        body: e.stack || e.toString()
-      }));
-    }
-  };
-
-  Prompt.prototype.focus = function() {
+  Input.prototype.focus = function() {
     this.elInput.focus();
   };
 
@@ -882,16 +965,28 @@ var Hoth = (function() {
     this.stream = new StringStream(source);
   };
 
-  Script.prototype.run = function() {
+  Script.prototype.run = function(environment) {
+    var state = this.stream.save();
+    var oldEnvironment = this.environment;
+
     this.stream.reset();
+    this.environment = environment;
+
     var expression;
     while (!this.stream.atEnd) {
-      this.execCommand();
+      expression = this.execCommand();
       while (this.stream.newline || this.stream.whitespace) {
         this.stream.next();
       }
     }
+
+    this.stream.restore(state);
+    this.environment = oldEnvironment;
+
+    return expression;
   };
+
+  var NO_ARG = {};
 
   Script.prototype.execCommand = function() {
     while (this.stream.newline || this.stream.whitespace) {
@@ -902,16 +997,44 @@ var Hoth = (function() {
     if (!name) this.stream.error('Name expected', start);
 
     var args = [];
-    do {
-      var arg = this.execArg();
-      if (arg) {
-        args.push(arg);
-      }
-    } while (arg);
+    for (;;) {
+      var arg = this.execExp(0);
+      if (arg === NO_ARG) break;
+      args.push(arg);
+    }
 
+    return this.call(name, args, start);
+  };
+
+  Script.prototype.execExp = function(precedence) {
+    var arg = this.execArg();
+    var operators = this.environment.operators;
+    if (Object.prototype.toString.call(operators) !== '[object Object]') return;
+    var operatorNames = Object.getOwnPropertyNames(operators);
+    do {
+      var has = false;
+      this.stream.skipSpace();
+      var start = this.stream.save();
+      for (var i = 0; i < operatorNames.length; i++) {
+        var op = operators[operatorNames[i]];
+        var prec = typeof op === 'number' ? op : op.precedence;
+        var right = typeof op !== 'number' && op.right;
+        if (prec >= precedence && this.stream.consume(operatorNames[i])) {
+          this.stream.skipSpace();
+          arg = this.call(operatorNames[i], [arg, this.execExp(right ? prec : prec + .0001)], start);
+          has = true;
+          break;
+        }
+      }
+    } while (has);
+    return arg;
+  };
+
+  Script.prototype.call = function(name, args, start) {
     if (!commands[name]) {
       this.stream.error(name + ' is undefined', start);
     }
+    commands[name].environment = this.environment;
     return commands[name].apply(null, args);
   };
 
@@ -921,7 +1044,7 @@ var Hoth = (function() {
       return this.stream.word();
     }
     if (this.stream.consume('$')) {
-      return environment[this.execArg()];
+      return this.environment[this.stream.word()];
     }
     if (this.stream.consume('(')) {
       var result = this.execCommand();
@@ -946,16 +1069,35 @@ var Hoth = (function() {
       }
       return result;
     }
+    return NO_ARG;
   };
 
-  var environment = {};
-
+  var globals = {};
+  var handlers = {};
   var commands = {};
+
+  // Introspection
+
+  globals.operators = {
+    '.': 20,
+    '+': 50,
+    '-': 50,
+    '*': 60,
+    '/': 60,
+    '^': { precedence: 70, right: true },
+    '@': 80
+  };
+
+  Object.defineProperty(globals, 'vars', {
+    get: function() {
+      return this;
+    }
+  });
 
   // Debugging
 
   commands.log = function() {
-    app.activeThread.append(new SystemMessage({
+    app.activeThread.append(new Message({
       body: [].join.call(arguments, ' ')
     }));
   };
@@ -970,22 +1112,84 @@ var Hoth = (function() {
     }));
   };
 
+  commands.console = function() {
+    app.activeThread = new Console;
+  };
+
   // Control flow
 
   commands.repeat = function(n, command) {
+    var body = new Script(command);
     for (var i = 0; i < n; i++) {
-      new Script(command).run();
+      body.run(app.env(commands.repeat.environment, {
+        '#': i + 1
+      }));
+    }
+  };
+
+  commands.if = function(condition, then, otherwise) {
+    if (condition) {
+      if (then) new Script(then).run();
+    } else {
+      if (otherwise) new Script(then).run();
     }
   };
 
   // Variables
 
   commands.set = function(name, value) {
-    environment[name] = value;
+    try {
+      globals[name] = value;
+    } catch (e) {}
   };
 
   commands.change = function(name, value) {
-    environment[name] = Number(environment[name]) + Number(value);
+    globals[name] = Number(globals[name]) + Number(value);
+  };
+
+  // Dicts
+
+  commands.dict = commands['#'] = function() {
+    var result = Object.create({});
+    var args = arguments;
+    for (var i = 0; i + 1 < args.length; i += 2) {
+      result[args[i]] = args[i + 1];
+    }
+    return result;
+  };
+
+  commands.put = function(dict, key, value) {
+    for (var i = 0; i + 1 < args.length; i += 2) {
+      dict[args[i]] = args[i + 1];
+    }
+    return dict;
+  };
+
+  commands.get = commands['@'] = function(dict, key) {
+    return dict[key];
+  };
+
+  commands.clone = commands['#+'] = function(object) {
+    var result = Object.create(object);
+    var args = arguments;
+    for (var i = 1; i + 1 < args.length; i += 2) {
+      result[args[i]] = args[i + 1];
+    }
+    return result;
+  };
+
+  commands.ownkeys = function(object) {
+    return Object.getOwnPropertyNames(object);
+  };
+
+  commands.keys = function(object) {
+    var keys = [];
+    var p = object;
+    while (p) {
+      keys = keys.concat(Object.getOwnPropertyNames(object));
+      p = Object.getPrototypeOf(p);
+    }
+    return keys;
   };
 
   // Arithmetic
@@ -1008,6 +1212,28 @@ var Hoth = (function() {
 
   commands['/'] = function(x, y) {
     return Number(x) / Number(y);
+  };
+
+  commands['^'] = function(x, y) {
+    return Math.pow(Number(x), Number(y));
+  };
+
+  // Strings
+
+  commands['.'] = function() {
+    return [].join.call(arguments, '');
+  };
+
+  // Events
+
+  commands.on = function(event, listener) {
+    if (!handlers[event]) handlers[event] = [];
+
+    handlers[event].push(new Script(listener));
+  };
+
+  commands.unlisten = function(event) {
+    delete handlers[event];
   };
 
   // Sessions
@@ -1033,6 +1259,15 @@ var Hoth = (function() {
     });
   };
 
+  // Messages
+
+  commands.say = function() {
+    app.reply(new ChatMessage({
+      author: currentUser,
+      body: [].join.call(arguments, ' ')
+    }));
+  };
+
   // Threads
 
   commands.open = commands.o = function(id) {
@@ -1053,18 +1288,18 @@ var Hoth = (function() {
   };
 
   commands.fork = commands.f = function() {
-    app.activeThread = new Thread;
+    app.activeThread = Thread.fork();
   };
 
   commands.threads = function() {
-    app.activeThread.append(new SystemMessage({
+    app.activeThread.append(new Message({
       body: '__Open threads:__\n' + app.threads.map(function (thread) {
         return thread.id
       }).join('\n')
     }));
   };
 
-  Object.defineProperty(environment, 'thread', {
+  Object.defineProperty(globals, 'thread', {
     enumerable: true,
     get: function() {
       return app.activeThread.id;
@@ -1139,7 +1374,6 @@ var Hoth = (function() {
     this.lobby = Thread.get('#lobby');
     this.append(this.lobby);
 
-    this.prompt = new Prompt;
     this.onHashChange();
     if (!this.activeThread) {
       this.activeThread = this.lobby;
@@ -1157,7 +1391,7 @@ var Hoth = (function() {
           return;
         }
         app.signIn(data);
-        app.lobby.append(new SystemMessage({
+        app.lobby.append(new Message({
           body: 'You were automatically signed in. Type [`/signout`] to sign out.'
         }));
       });
@@ -1223,7 +1457,9 @@ var Hoth = (function() {
       this.warn(this.warning);
     }
     setTimeout(function() {
-      app.prompt.focus();
+      if (app.input) {
+        app.input.focus();
+      }
     });
   };
 
@@ -1332,18 +1568,9 @@ var Hoth = (function() {
     }
   };
 
-  Object.defineProperty(app, 'prompt', {
-    set: function(prompt) {
-      if (this.$prompt) {
-        this.$prompt.delete();
-      }
-      this.$prompt = prompt;
-      if (this.activeThread) {
-        this.activeThread.prompt = prompt;
-      }
-    },
+  Object.defineProperty(app, 'input', {
     get: function() {
-      return this.$prompt;
+      return this.activeThread.input;
     }
   });
 
@@ -1354,20 +1581,14 @@ var Hoth = (function() {
     set: function(thread) {
       if (this.$activeThread === thread) return;
 
+      if (this.$activeThread) {
+        this.$activeThread.deactivate();
+      }
       if (this.$activeThread = thread) {
         if (!thread.open) {
           this.append(thread);
         }
-        if (thread.permalink) {
-          location.hash = thread.permalink;
-        }
-        thread.element.scrollIntoView();
-        if (this.prompt) {
-          thread.prompt = this.prompt;
-          setTimeout(function() {
-            this.prompt.focus();
-          }.bind(this));
-        }
+        thread.activate();
       }
     },
     get: function() {
@@ -1429,14 +1650,43 @@ var Hoth = (function() {
     if (json.goto) {
       app.activeThread = Thread.get(json.goto);
     } else if (json.run) {
-      try {
-        new Script(json.run).run();
-      } catch (e) {
-        (app.activeThread || this.lobby).append(new ErrorMessage({
-          body: e.stack || e.toString()
-        }));
-      }
+      app.run(json.run);
     }
+  };
+
+  app.run = function(source) {
+    try {
+      new Script(source).run(globals);
+    } catch (e) {
+      (app.activeThread || this.lobby).append(new Message({
+        type: 'error',
+        body: e.stack || e.toString()
+      }));
+    }
+  };
+
+  app.env = function(parent, vars) {
+    var environment = Object.create(parent);
+    Object.getOwnPropertyNames(vars).forEach(function(name) {
+      Object.defineProperty(environment, name, Object.getOwnPropertyDescriptor(vars, name));
+    });
+    return environment;
+  };
+
+  app.emit = function(event, vars) {
+    var list = handlers[event];
+    if (!list) return;
+
+    list.forEach(function(handler) {
+      handler.run(app.env(globals, vars));
+    });
+  };
+
+  app.emitMessage = function(message) {
+    this.emit(message.type === 'chat' ? 'message' : 'broadcast', {
+      get author() { return message.author.name },
+      get message() { return message.body }
+    });
   };
 
   Object.defineProperty(app, 'currentUser', {
@@ -1509,21 +1759,21 @@ var Hoth = (function() {
     } else {
       app.showSignIn();
     }
-    app.lobby.append(new SystemMessage({
+    app.lobby.append(new Message({
       body: 'Reconnected to server.'
     }));
   });
 
   socket.on('disconnect', function() {
     app.connected = false;
-    app.lobby.append(new SystemMessage({
+    app.lobby.append(new Message({
       body: 'Disconnected from server.'
     }));
   });
 
   socket.on('system', function(data) {
     if (!data.body) return;
-    Thread.get(data.thread).append(new SystemMessage({ body: data.body }));
+    Thread.get(data.thread).append(new Message({ body: data.body }));
   }.bind(this));
 
   socket.on('chat', function(data) {
@@ -1550,13 +1800,13 @@ var Hoth = (function() {
   });
 
   socket.on('user join', function(name) {
-    app.lobby.append(new SystemMessage({
+    app.lobby.append(new Message({
       body: '__' + escapeMarkup(name) + '__ joined.'
     }));
   });
 
   socket.on('user leave', function(name) {
-    app.lobby.append(new SystemMessage({
+    app.lobby.append(new Message({
       body: '__' + escapeMarkup(name) + '__ left.'
     }));
   });
@@ -1570,10 +1820,9 @@ var Hoth = (function() {
   app.User = User;
   app.Thread = Thread;
   app.ChatMessage = ChatMessage;
-  app.SystemMessage = SystemMessage;
   app.Message = Message;
 
-  app.environment = environment;
+  app.globals = globals;
   app.commands = commands;
 
   app.notify = notify;

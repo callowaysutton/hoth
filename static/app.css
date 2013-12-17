@@ -147,10 +147,12 @@ body {
 }
 .hoth-thread-name::before {
   color: rgba(0, 0, 0, .4);
-  content: '! ';
 }
 .hoth-thread.active .hoth-thread-name::before {
   color: rgba(255, 255, 255, .6);
+}
+.hoth-thread.temp .hoth-thread-name::before {
+  content: '! ';
 }
 .hoth-thread.topic .hoth-thread-name::before {
   content: '# ';
@@ -186,9 +188,18 @@ body {
   background-color: #fff5f5;
   color: #a00;
 }
+.hoth-message.terminal {
+  background: #555;
+  color: #eee;
+  border-top-color: #444;
+}
+.hoth-message.terminal .hoth-message-time {
+  color: rgba(255, 255, 255, .6);
+}
 .hoth-message.error .hoth-message-body,
+.hoth-message.terminal .hoth-message-body,
 .hoth-message-body code {
-  font: 11px Menlo, Monaco, Consolas, Courier New, monospace;
+  font: 11px/16px Menlo, Monaco, Consolas, Courier New, monospace;
 }
 .hoth-message pre {
   margin: 0;
@@ -242,6 +253,7 @@ body {
   color: inherit;
   width: 100%;
   resize: none;
+  display: block;
 }
 .hoth-message-measure {
   position: absolute;
