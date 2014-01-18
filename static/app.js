@@ -1483,7 +1483,7 @@ var Hoth = (function() {
     notify.visible = [];
   });
 
-  var socket = io.connect('https://' + location.host, { secure: true });
+  var socket = io.connect(location.protocol + '//' + location.host, { secure: location.protocol === 'https:' });
 
   socket.on('connect', function() {
     app.connected = true;
