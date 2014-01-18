@@ -3,18 +3,28 @@
 var fs = require('fs');
 
 if (process.argv[2] === '--help' || process.argv[2] === '-h') {
-  console.log('Usage: node hoth.js [ config.json ]');
+  console.log('Usage: node hoth.js [--port <port>] [ config.json ]');
   return;
 }
 
 var bcrypt = require('bcryptjs');
 
 var CONFIG = JSON.parse(fs.readFileSync(__dirname + '/default.json'));
-if (process.argv[2]) {
-  var USER_CONFIG = JSON.parse(fs.readFileSync(process.argv[2]));
-  for (var key in USER_CONFIG) if (Object.prototype.hasOwnProperty.call(USER_CONFIG, key)) {
-    CONFIG[key] = USER_CONFIG[key];
+
+var argi = 2;
+while (argi < process.argv.length) {
+  if (process.argv[argi] === '--port') {
+    argi++;
+    CONFIG.port = Number(process.argv[argi]);
+  } else if (process.argv[argi].slice(2) !== '--') {
+    var overrides = JSON.parse(fs.readFileSync(process.argv[2]));
+    for (var key in overrides) if (Object.prototype.hasOwnProperty.call(overrides, key)) {
+      CONFIG[key] = overrides[key];
+    }
+  } else {
+    console.error('Unknown option ' + process.argv[argi]);
   }
+  argi++;
 }
 
 var mongoose = require('mongoose');
