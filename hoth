@@ -129,10 +129,14 @@ db.once('open', function() {
   var Thread = mongoose.model('Thread', threadSchema);
   var Message = mongoose.model('Message', messageSchema);
 
-  var app = require('https').createServer({
-    key: fs.readFileSync('private/key.pem'),
-    cert: fs.readFileSync('private/cert.pem')
-  }, handler);
+  if (CONFIG.useTLS) {
+    var app = require('https').createServer({
+      key: fs.readFileSync('private/key.pem'),
+      cert: fs.readFileSync('private/cert.pem')
+    }, handler);
+  } else {
+    var app = require('http').createServer(handler);
+  }
   app.listen(CONFIG.port);
 
   var io = require('socket.io').listen(app);

@@ -3,5 +3,6 @@
   "mongoHost": "localhost",
   "mongoPort": 27017,
   "motd": "Welcome to the #lobby! Type [`/index`] for an index of important topics and [`/help`] for a list of commands.",
-  "minPasswordLength": 8
+  "minPasswordLength": 8,
+  "useTLS": true
 }
